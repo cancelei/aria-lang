@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::ast::{Program, Statement, Expr};
 
 pub struct Evaluator {
-    variables: HashMap<String, Value>,
+    pub variables: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,3 +80,6 @@ impl Evaluator {
         }
     }
 }
+
+#[cfg(test)]
+mod eval_tests;
