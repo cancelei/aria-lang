@@ -5,3 +5,13 @@ dist/
 build/
 bin/
 .env
+
+# Rust build artifacts
+target/
+**/target/
+Cargo.lock
+
+# Binary files
+*.o
+*.so
+*.dylib
