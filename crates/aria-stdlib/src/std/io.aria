@@ -1,0 +1,88 @@
+# Aria Standard Library - I/O Module
+# Input/output operations
+
+# Print a value to stdout without a newline
+# Native implementation provided by runtime
+fn print(value)
+  # Native builtin
+end
+
+# Print a value to stdout with a newline
+fn println(value)
+  # Native builtin
+end
+
+# Read a line from stdin
+fn read_line() -> String
+  # Native builtin - returns String
+  input()
+end
+
+# Print formatted string
+fn printf(format: String, ...args)
+  # TODO: Implement string formatting
+  print(format)
+end
+
+# Print error to stderr
+fn eprint(value)
+  # Native builtin
+end
+
+# Print error to stderr with newline
+fn eprintln(value)
+  # Native builtin
+end
+
+# File operations (stub - to be implemented with FFI)
+struct File
+  path: String
+  handle: Int  # File descriptor
+end
+
+impl File
+  # Open a file for reading
+  fn open(path: String) -> Result<File, String>
+    # TODO: Native FFI implementation
+    Err("File operations not yet implemented")
+  end
+
+  # Create a new file for writing
+  fn create(path: String) -> Result<File, String>
+    # TODO: Native FFI implementation
+    Err("File operations not yet implemented")
+  end
+
+  # Read entire file contents
+  fn read_to_string(self) -> Result<String, String>
+    # TODO: Native FFI implementation
+    Err("File operations not yet implemented")
+  end
+
+  # Write string to file
+  fn write(self, content: String) -> Result<(), String>
+    # TODO: Native FFI implementation
+    Err("File operations not yet implemented")
+  end
+
+  # Close file
+  fn close(self)
+    # TODO: Native FFI implementation
+  end
+end
+
+# Read entire file to string
+fn read_file(path: String) -> Result<String, String>
+  let file = File::open(path)?
+  let content = file.read_to_string()?
+  file.close()
+  Ok(content)
+end
+
+# Write string to file
+fn write_file(path: String, content: String) -> Result<(), String>
+  let file = File::create(path)?
+  file.write(content)?
+  file.close()
+  Ok(())
+end

@@ -1,0 +1,47 @@
+# Aria Standard Library - Main Module
+# Root module for the Aria standard library
+
+# Core modules
+export "./core/mod.aria" as core
+export "./core/option.aria" as option
+export "./core/result.aria" as result
+export "./core/string.aria" as string
+export "./core/array.aria" as array
+
+# Collections
+export "./collections/mod.aria" as collections
+export "./collections/hashmap.aria" as hashmap
+
+# I/O
+export "./io/mod.aria" as io
+
+# Prelude - automatically imported
+export "./prelude.aria" as prelude
+
+# Module documentation
+#
+# The Aria standard library provides core functionality for Aria programs:
+#
+# - **core**: Fundamental types and utilities (Option, Result, traits)
+# - **collections**: Data structures (HashMap, HashSet, LinkedList)
+# - **io**: Input/output operations (file I/O, console I/O)
+# - **string**: String manipulation functions
+# - **array**: Functional array operations (map, filter, fold)
+#
+# Most commonly used items are re-exported in the prelude and are
+# automatically available in all Aria programs.
+#
+# ## Usage
+#
+# The prelude is automatically imported. For other modules:
+#
+# ```aria
+# import std::collections::HashMap
+# import std::io::File
+# ```
+#
+# ## BioFlow Integration
+#
+# This stdlib is designed to work seamlessly with BioFlow programs,
+# providing efficient data structures and I/O operations for
+# bioinformatics workflows.

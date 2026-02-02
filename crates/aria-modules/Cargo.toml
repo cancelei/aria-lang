@@ -1,0 +1,25 @@
+[package]
+name = "aria-modules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Workspace crates
+aria-ast = { path = "../aria-ast" }
+aria-lexer = { path = "../aria-lexer" }
+aria-parser = { path = "../aria-parser" }
+aria-diagnostics = { path = "../aria-diagnostics" }
+
+# External dependencies
+thiserror.workspace = true
+rustc-hash.workspace = true
+indexmap.workspace = true
+smol_str.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+insta.workspace = true
+tempfile = "3.8"

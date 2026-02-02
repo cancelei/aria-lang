@@ -1,0 +1,413 @@
+# BioFlow - Validation Algorithms
+# Sequence and quality validation with comprehensive contracts
+
+import core::sequence::{Sequence, SequenceType, VALID_DNA_BASES, VALID_RNA_BASES}
+import core::quality::{QualityScores, PHRED_MIN, PHRED_MAX}
+
+# Validation result with detailed information
+enum ValidationResult
+  Valid
+  Invalid(errors: [ValidationError])
+end
+
+# Specific validation errors
+enum ValidationError
+  InvalidBase(position: Int, found: Char, expected: [Char])
+  SequenceTooShort(length: Int, minimum: Int)
+  SequenceTooLong(length: Int, maximum: Int)
+  QualityOutOfRange(position: Int, score: Int)
+  LengthMismatch(seq_len: Int, qual_len: Int)
+  TooManyAmbiguous(count: Int, max_allowed: Int)
+  InvalidHeader(reason: String)
+end
+
+impl ValidationResult
+  fn is_valid(self) -> Bool
+    match self
+      ValidationResult::Valid => true
+      ValidationResult::Invalid(_) => false
+    end
+  end
+
+  fn error_count(self) -> Int
+    match self
+      ValidationResult::Valid => 0
+      ValidationResult::Invalid(errors) => errors.len()
+    end
+  end
+end
+
+# Validates that a string contains only valid DNA bases
+#
+# Contracts:
+# - requires: input string is non-empty
+# - ensures: result implies all characters are valid DNA bases
+fn is_valid_dna(seq: String) -> Bool
+  requires seq.len() > 0 : "Sequence cannot be empty"
+  ensures result implies seq.all(|c| c in ['A', 'C', 'G', 'T', 'N', 'a', 'c', 'g', 't', 'n'])
+
+  let upper = seq.to_uppercase()
+  let mut i = 0
+
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    if c != 'A' and c != 'C' and c != 'G' and c != 'T' and c != 'N'
+      return false
+    end
+
+    i = i + 1
+  end
+
+  true
+end
+
+# Validates that a string contains only valid RNA bases
+fn is_valid_rna(seq: String) -> Bool
+  requires seq.len() > 0 : "Sequence cannot be empty"
+  ensures result implies seq.all(|c| c in ['A', 'C', 'G', 'U', 'N', 'a', 'c', 'g', 'u', 'n'])
+
+  let upper = seq.to_uppercase()
+  let mut i = 0
+
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    if c != 'A' and c != 'C' and c != 'G' and c != 'U' and c != 'N'
+      return false
+    end
+
+    i = i + 1
+  end
+
+  true
+end
+
+# Valid amino acid codes (single letter)
+const VALID_AMINO_ACIDS: [Char] = [
+  'A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I',
+  'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V',
+  'B', 'Z', 'X', '*'  # B=Asx, Z=Glx, X=unknown, *=stop
+]
+
+# Validates that a string contains only valid protein residues
+fn is_valid_protein(seq: String) -> Bool
+  requires seq.len() > 0 : "Sequence cannot be empty"
+
+  let upper = seq.to_uppercase()
+  let mut i = 0
+
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    let mut found = false
+
+    let mut j = 0
+    loop
+      if j >= VALID_AMINO_ACIDS.len()
+        break
+      end
+
+      if c == VALID_AMINO_ACIDS[j]
+        found = true
+        break
+      end
+
+      j = j + 1
+    end
+
+    if !found
+      return false
+    end
+
+    i = i + 1
+  end
+
+  true
+end
+
+# Validates a DNA sequence with detailed error reporting
+fn validate_dna_detailed(seq: String) -> ValidationResult
+  requires seq.len() > 0
+
+  let mut errors = []
+  let upper = seq.to_uppercase()
+
+  let mut i = 0
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    if c != 'A' and c != 'C' and c != 'G' and c != 'T' and c != 'N'
+      errors.push(ValidationError::InvalidBase(
+        position: i,
+        found: c,
+        expected: VALID_DNA_BASES
+      ))
+    end
+
+    i = i + 1
+  end
+
+  if errors.len() == 0
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: errors)
+  end
+end
+
+# Validates FASTQ quality string
+fn validate_fastq_quality(quality_string: String, encoding: String) -> ValidationResult
+  requires quality_string.len() > 0 : "Quality string cannot be empty"
+  requires encoding == "phred33" or encoding == "phred64" : "Invalid encoding"
+
+  let mut errors = []
+  let offset = if encoding == "phred33" then 33 else 64 end
+  let max_ascii = if encoding == "phred33" then 74 else 104 end
+
+  let mut i = 0
+  loop
+    if i >= quality_string.len()
+      break
+    end
+
+    let c = quality_string.char_at(i)
+    let ascii_val = c.to_int()
+
+    if ascii_val < offset or ascii_val > max_ascii
+      let score = ascii_val - offset
+      errors.push(ValidationError::QualityOutOfRange(
+        position: i,
+        score: score
+      ))
+    end
+
+    i = i + 1
+  end
+
+  if errors.len() == 0
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: errors)
+  end
+end
+
+# Validates sequence length is within bounds
+fn validate_length(seq: String, min_len: Int, max_len: Int) -> ValidationResult
+  requires min_len >= 0 : "Minimum length cannot be negative"
+  requires max_len >= min_len : "Maximum must be >= minimum"
+
+  let len = seq.len()
+  let mut errors = []
+
+  if len < min_len
+    errors.push(ValidationError::SequenceTooShort(
+      length: len,
+      minimum: min_len
+    ))
+  end
+
+  if len > max_len
+    errors.push(ValidationError::SequenceTooLong(
+      length: len,
+      maximum: max_len
+    ))
+  end
+
+  if errors.len() == 0
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: errors)
+  end
+end
+
+# Validates that sequence doesn't have too many ambiguous bases
+fn validate_ambiguous_bases(seq: String, max_proportion: Float) -> ValidationResult
+  requires max_proportion >= 0.0 and max_proportion <= 1.0 :
+    "Max proportion must be between 0 and 1"
+
+  let mut n_count = 0
+  let upper = seq.to_uppercase()
+
+  let mut i = 0
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    if upper.char_at(i) == 'N'
+      n_count = n_count + 1
+    end
+
+    i = i + 1
+  end
+
+  let proportion = n_count.to_float() / seq.len().to_float()
+  let max_allowed = (max_proportion * seq.len().to_float()).ceil().to_int()
+
+  if proportion <= max_proportion
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: [
+      ValidationError::TooManyAmbiguous(
+        count: n_count,
+        max_allowed: max_allowed
+      )
+    ])
+  end
+end
+
+# Validates a FASTA header line
+fn validate_fasta_header(header: String) -> ValidationResult
+  if header.len() == 0
+    return ValidationResult::Invalid(errors: [
+      ValidationError::InvalidHeader(reason: "Header cannot be empty")
+    ])
+  end
+
+  if !header.starts_with(">")
+    return ValidationResult::Invalid(errors: [
+      ValidationError::InvalidHeader(reason: "Header must start with '>'")
+    ])
+  end
+
+  if header.len() == 1
+    return ValidationResult::Invalid(errors: [
+      ValidationError::InvalidHeader(reason: "Header must have an identifier")
+    ])
+  end
+
+  ValidationResult::Valid
+end
+
+# Validates sequence and quality have matching lengths
+fn validate_seq_quality_match(seq_len: Int, qual_len: Int) -> ValidationResult
+  requires seq_len > 0 : "Sequence length must be positive"
+  requires qual_len > 0 : "Quality length must be positive"
+
+  if seq_len == qual_len
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: [
+      ValidationError::LengthMismatch(
+        seq_len: seq_len,
+        qual_len: qual_len
+      )
+    ])
+  end
+end
+
+# Comprehensive sequence validation
+fn validate_sequence_full(
+  seq: String,
+  seq_type: SequenceType,
+  min_len: Int,
+  max_len: Int,
+  max_ambiguous: Float
+) -> ValidationResult
+  requires seq.len() > 0
+  requires min_len >= 0
+  requires max_len >= min_len
+  requires max_ambiguous >= 0.0 and max_ambiguous <= 1.0
+
+  let mut all_errors = []
+
+  # Validate sequence type
+  let type_result = match seq_type
+    SequenceType::DNA => validate_dna_detailed(seq)
+    SequenceType::RNA => {
+      if is_valid_rna(seq)
+        then ValidationResult::Valid
+        else ValidationResult::Invalid(errors: [
+          ValidationError::InvalidBase(
+            position: 0,
+            found: ' ',
+            expected: VALID_RNA_BASES
+          )
+        ])
+      end
+    }
+    SequenceType::Unknown => validate_dna_detailed(seq)
+  end
+
+  match type_result
+    ValidationResult::Invalid(errors) => all_errors.append(errors)
+    _ => ()
+  end
+
+  # Validate length
+  match validate_length(seq, min_len, max_len)
+    ValidationResult::Invalid(errors) => all_errors.append(errors)
+    _ => ()
+  end
+
+  # Validate ambiguous bases
+  match validate_ambiguous_bases(seq, max_ambiguous)
+    ValidationResult::Invalid(errors) => all_errors.append(errors)
+    _ => ()
+  end
+
+  if all_errors.len() == 0
+    ValidationResult::Valid
+  else
+    ValidationResult::Invalid(errors: all_errors)
+  end
+end
+
+# Batch validation for multiple sequences
+fn validate_sequences(
+  sequences: [String],
+  seq_type: SequenceType
+) -> [(Int, ValidationResult)]
+  requires sequences.len() > 0 : "Sequence list cannot be empty"
+  ensures result.len() == sequences.len()
+
+  let mut results = []
+
+  let mut i = 0
+  loop
+    if i >= sequences.len()
+      break
+    end
+
+    let seq = sequences[i]
+    let valid = match seq_type
+      SequenceType::DNA => {
+        if is_valid_dna(seq)
+          then ValidationResult::Valid
+          else validate_dna_detailed(seq)
+        end
+      }
+      SequenceType::RNA => {
+        if is_valid_rna(seq)
+          then ValidationResult::Valid
+          else ValidationResult::Invalid(errors: [
+            ValidationError::InvalidBase(position: 0, found: ' ', expected: VALID_RNA_BASES)
+          ])
+        end
+      }
+      SequenceType::Unknown => {
+        if is_valid_dna(seq)
+          then ValidationResult::Valid
+          else validate_dna_detailed(seq)
+        end
+      }
+    end
+
+    results.push((i, valid))
+    i = i + 1
+  end
+
+  results
+end

@@ -1,0 +1,37 @@
+# Small benchmark program (~30 lines)
+# Tests basic function definitions and arithmetic
+
+fn add(a: Int, b: Int) -> Int
+  a + b
+end
+
+fn multiply(x: Int, y: Int) -> Int
+  x * y
+end
+
+fn factorial(n: Int) -> Int
+  if n <= 1
+    1
+  else
+    n * factorial(n - 1)
+  end
+end
+
+fn fibonacci(n: Int) -> Int
+  if n <= 1
+    n
+  else
+    fibonacci(n - 1) + fibonacci(n - 2)
+  end
+end
+
+fn main()
+  let a = 10
+  let b = 20
+  let sum = add(a, b)
+  let product = multiply(a, b)
+  let fact = factorial(5)
+  print(sum)
+  print(product)
+  print(fact)
+end

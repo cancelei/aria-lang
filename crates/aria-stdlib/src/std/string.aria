@@ -1,0 +1,145 @@
+# Aria Standard Library - String Module
+# String manipulation and formatting
+
+impl String
+  # Returns the length of the string in bytes
+  fn len(self) -> Int
+    # Native builtin
+    len(self)
+  end
+
+  # Returns true if the string is empty
+  fn is_empty(self) -> Bool
+    self.len() == 0
+  end
+
+  # Returns a new string with characters in uppercase
+  fn to_uppercase(self) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Returns a new string with characters in lowercase
+  fn to_lowercase(self) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Trims whitespace from both ends
+  fn trim(self) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Trims whitespace from the start
+  fn trim_start(self) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Trims whitespace from the end
+  fn trim_end(self) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Splits string by delimiter
+  fn split(self, delimiter: String) -> [String]
+    # TODO: Native implementation
+    [self]
+  end
+
+  # Splits string by whitespace
+  fn split_whitespace(self) -> [String]
+    # TODO: Native implementation
+    [self]
+  end
+
+  # Joins array of strings with separator
+  fn join(parts: [String], separator: String) -> String
+    # TODO: Native implementation
+    ""
+  end
+
+  # Checks if string starts with prefix
+  fn starts_with(self, prefix: String) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Checks if string ends with suffix
+  fn ends_with(self, suffix: String) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Checks if string contains substring
+  fn contains(self, substring: String) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Replaces all occurrences of pattern with replacement
+  fn replace(self, pattern: String, replacement: String) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Repeats the string n times
+  fn repeat(self, n: Int) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Returns a substring from start to end (exclusive)
+  fn substring(self, start: Int, end: Int) -> String
+    # TODO: Native implementation
+    self
+  end
+
+  # Returns character at index
+  fn char_at(self, index: Int) -> Option<Char>
+    # TODO: Native implementation
+    None
+  end
+
+  # Converts string to integer
+  fn parse_int(self) -> Result<Int, String>
+    # Native builtin
+    match to_int(self)
+      value -> Ok(value)
+    end
+  end
+
+  # Converts string to float
+  fn parse_float(self) -> Result<Float, String>
+    # Native builtin
+    match to_float(self)
+      value -> Ok(value)
+    end
+  end
+
+  # Returns an iterator over characters
+  fn chars(self) -> Iterator<Char>
+    # TODO: Implement when Iterator trait is ready
+    todo("String::chars not yet implemented")
+  end
+
+  # Returns an iterator over lines
+  fn lines(self) -> Iterator<String>
+    # TODO: Implement when Iterator trait is ready
+    todo("String::lines not yet implemented")
+  end
+end
+
+# Format a string with interpolation
+fn format(template: String, ...args) -> String
+  # TODO: Implement string formatting
+  template
+end
+
+# Convert any value to string
+fn to_string(value) -> String
+  # Native builtin
+  to_string(value)
+end

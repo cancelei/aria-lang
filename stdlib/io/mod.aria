@@ -1,0 +1,360 @@
+# Aria Standard Library - I/O Module
+# Input/output operations for BioFlow programs
+
+# IoError type for representing I/O errors
+struct IoError
+  message: String
+  kind: IoErrorKind
+end
+
+# Different kinds of I/O errors
+enum IoErrorKind
+  NotFound
+  PermissionDenied
+  AlreadyExists
+  InvalidInput
+  UnexpectedEof
+  Other
+end
+
+impl IoError
+  # Create a new I/O error
+  fn new(kind: IoErrorKind, message: String) -> IoError
+    IoError {
+      message: message,
+      kind: kind
+    }
+  end
+
+  # Get error message
+  fn message(self) -> String
+    self.message
+  end
+
+  # Get error kind
+  fn kind(self) -> IoErrorKind
+    self.kind
+  end
+end
+
+# Print a string to stdout without newline
+fn print(s: String)
+  # Native builtin
+  __builtin_print(s)
+end
+
+# Print a string to stdout with newline
+fn println(s: String)
+  # Native builtin
+  __builtin_println(s)
+end
+
+# Print formatted string (simplified version)
+fn printf(template: String, ...args)
+  # TODO: Implement proper string formatting
+  print(template)
+end
+
+# Print to stderr
+fn eprint(s: String)
+  # Native builtin
+  __builtin_eprint(s)
+end
+
+# Print to stderr with newline
+fn eprintln(s: String)
+  # Native builtin
+  __builtin_eprintln(s)
+end
+
+# Read a line from stdin
+fn read_line() -> String
+  # Native builtin
+  __builtin_read_line()
+end
+
+# Read entire stdin until EOF
+fn read_to_string() -> String
+  let mut result = ""
+
+  loop
+    let line = read_line()
+    if line.is_empty()
+      break
+    end
+    result = result.concat(line).concat("\n")
+  end
+
+  result
+end
+
+# Read entire file contents
+fn read_file(path: String) -> Result<String, IoError>
+  # Native builtin for file reading
+  match __builtin_read_file(path)
+    Ok(content) -> Ok(content)
+    Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+  end
+end
+
+# Write string to file
+fn write_file(path: String, content: String) -> Result<(), IoError>
+  # Native builtin for file writing
+  match __builtin_write_file(path, content)
+    Ok(_) -> Ok(())
+    Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+  end
+end
+
+# Append string to file
+fn append_file(path: String, content: String) -> Result<(), IoError>
+  # Native builtin for file appending
+  match __builtin_append_file(path, content)
+    Ok(_) -> Ok(())
+    Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+  end
+end
+
+# Check if file exists
+fn file_exists(path: String) -> Bool
+  match read_file(path)
+    Ok(_) -> true
+    Err(_) -> false
+  end
+end
+
+# Read file lines into array
+fn read_lines(path: String) -> Result<[String], IoError>
+  match read_file(path)
+    Ok(content) ->
+      let lines = content.split("\n")
+      Ok(lines)
+    Err(e) -> Err(e)
+  end
+end
+
+# Write lines to file
+fn write_lines(path: String, lines: [String]) -> Result<(), IoError>
+  let content = lines.join("\n")
+  write_file(path, content)
+end
+
+# File handle for buffered I/O
+struct File
+  path: String
+  handle: Int
+  is_open: Bool
+end
+
+impl File
+  # Open file for reading
+  fn open(path: String) -> Result<File, IoError>
+    match __builtin_file_open(path, "r")
+      Ok(handle) -> Ok(File {
+        path: path,
+        handle: handle,
+        is_open: true
+      })
+      Err(msg) -> Err(IoError::new(IoErrorKind::NotFound, msg))
+    end
+  end
+
+  # Create new file for writing
+  fn create(path: String) -> Result<File, IoError>
+    match __builtin_file_open(path, "w")
+      Ok(handle) -> Ok(File {
+        path: path,
+        handle: handle,
+        is_open: true
+      })
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Open file for appending
+  fn append(path: String) -> Result<File, IoError>
+    match __builtin_file_open(path, "a")
+      Ok(handle) -> Ok(File {
+        path: path,
+        handle: handle,
+        is_open: true
+      })
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Read entire file to string
+  fn read_to_string(self) -> Result<String, IoError>
+    if !self.is_open
+      return Err(IoError::new(IoErrorKind::Other, "File is not open"))
+    end
+
+    match __builtin_file_read(self.handle)
+      Ok(content) -> Ok(content)
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Read file line by line
+  fn read_line(self) -> Result<String, IoError>
+    if !self.is_open
+      return Err(IoError::new(IoErrorKind::Other, "File is not open"))
+    end
+
+    match __builtin_file_read_line(self.handle)
+      Ok(line) -> Ok(line)
+      Err(msg) -> Err(IoError::new(IoErrorKind::UnexpectedEof, msg))
+    end
+  end
+
+  # Write string to file
+  fn write(self, content: String) -> Result<(), IoError>
+    if !self.is_open
+      return Err(IoError::new(IoErrorKind::Other, "File is not open"))
+    end
+
+    match __builtin_file_write(self.handle, content)
+      Ok(_) -> Ok(())
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Write line to file
+  fn write_line(self, line: String) -> Result<(), IoError>
+    self.write(line.concat("\n"))
+  end
+
+  # Flush buffered writes
+  fn flush(self) -> Result<(), IoError>
+    if !self.is_open
+      return Err(IoError::new(IoErrorKind::Other, "File is not open"))
+    end
+
+    match __builtin_file_flush(self.handle)
+      Ok(_) -> Ok(())
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Close the file
+  fn close(mut self) -> Result<(), IoError>
+    if !self.is_open
+      return Ok(())
+    end
+
+    match __builtin_file_close(self.handle)
+      Ok(_) ->
+        self.is_open = false
+        Ok(())
+      Err(msg) -> Err(IoError::new(IoErrorKind::Other, msg))
+    end
+  end
+
+  # Get file path
+  fn path(self) -> String
+    self.path
+  end
+
+  # Check if file is open
+  fn is_open(self) -> Bool
+    self.is_open
+  end
+end
+
+# Buffered reader for efficient line-by-line reading
+struct BufReader
+  file: File
+  buffer: [String]
+  position: Int
+end
+
+impl BufReader
+  # Create a buffered reader from a file
+  fn new(file: File) -> BufReader
+    BufReader {
+      file: file,
+      buffer: [],
+      position: 0
+    }
+  end
+
+  # Read next line
+  fn read_line(mut self) -> Result<String, IoError>
+    self.file.read_line()
+  end
+
+  # Read all lines
+  fn lines(self) -> Result<[String], IoError>
+    let mut lines: [String] = []
+
+    loop
+      match self.file.read_line()
+        Ok(line) ->
+          if line.is_empty()
+            break
+          end
+          lines.push(line)
+        Err(e) ->
+          # Check if EOF
+          if e.kind() == IoErrorKind::UnexpectedEof
+            break
+          end
+          return Err(e)
+      end
+    end
+
+    Ok(lines)
+  end
+end
+
+# Buffered writer for efficient writing
+struct BufWriter
+  file: File
+  buffer: String
+  capacity: Int
+end
+
+impl BufWriter
+  # Create a buffered writer
+  fn new(file: File) -> BufWriter
+    BufWriter {
+      file: file,
+      buffer: "",
+      capacity: 8192
+    }
+  end
+
+  # Write string to buffer
+  fn write(mut self, content: String) -> Result<(), IoError>
+    self.buffer = self.buffer.concat(content)
+
+    # Flush if buffer is full
+    if self.buffer.len() >= self.capacity
+      self.flush()?
+    end
+
+    Ok(())
+  end
+
+  # Write line to buffer
+  fn write_line(mut self, line: String) -> Result<(), IoError>
+    self.write(line.concat("\n"))
+  end
+
+  # Flush buffer to file
+  fn flush(mut self) -> Result<(), IoError>
+    if self.buffer.is_empty()
+      return Ok(())
+    end
+
+    self.file.write(self.buffer)?
+    self.buffer = ""
+    self.file.flush()
+  end
+
+  # Close writer and flush buffer
+  fn close(mut self) -> Result<(), IoError>
+    self.flush()?
+    self.file.close()
+  end
+end

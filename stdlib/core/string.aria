@@ -1,0 +1,321 @@
+# Aria Standard Library - String Operations
+# Pure Aria implementation of string manipulation functions
+
+# String struct representing a sequence of bytes
+struct String
+  data: Bytes
+  length: Int
+end
+
+impl String
+  # Convert string to uppercase
+  fn to_uppercase(self) -> String
+    # TODO: Implement when we have char iteration and conversion
+    # For now, use native builtin if available
+    self
+  end
+
+  # Convert string to lowercase
+  fn to_lowercase(self) -> String
+    # TODO: Implement when we have char iteration and conversion
+    # For now, use native builtin if available
+    self
+  end
+
+  # Get character at specific index
+  fn char_at(self, index: Int) -> Char
+    # Bounds check
+    if index < 0 || index >= self.length
+      panic("String index out of bounds")
+    end
+
+    # Native builtin for char access
+    __builtin_char_at(self, index)
+  end
+
+  # Extract a slice of the string
+  fn slice(self, start: Int, end: Int) -> String
+    # Bounds validation
+    if start < 0 || end > self.length || start > end
+      panic("Invalid slice bounds")
+    end
+
+    # Native builtin for slicing
+    __builtin_string_slice(self, start, end)
+  end
+
+  # Check if string contains a substring
+  fn contains(self, needle: String) -> Bool
+    if needle.length == 0
+      return true
+    end
+
+    if needle.length > self.length
+      return false
+    end
+
+    # Search for needle in haystack
+    let max_offset = self.length - needle.length
+    let mut i = 0
+
+    while i <= max_offset
+      let mut found = true
+      let mut j = 0
+
+      while j < needle.length
+        if self.char_at(i + j) != needle.char_at(j)
+          found = false
+          break
+        end
+        j = j + 1
+      end
+
+      if found
+        return true
+      end
+
+      i = i + 1
+    end
+
+    false
+  end
+
+  # Check if string starts with prefix
+  fn starts_with(self, prefix: String) -> Bool
+    if prefix.length > self.length
+      return false
+    end
+
+    let mut i = 0
+    while i < prefix.length
+      if self.char_at(i) != prefix.char_at(i)
+        return false
+      end
+      i = i + 1
+    end
+
+    true
+  end
+
+  # Check if string ends with suffix
+  fn ends_with(self, suffix: String) -> Bool
+    if suffix.length > self.length
+      return false
+    end
+
+    let offset = self.length - suffix.length
+    let mut i = 0
+
+    while i < suffix.length
+      if self.char_at(offset + i) != suffix.char_at(i)
+        return false
+      end
+      i = i + 1
+    end
+
+    true
+  end
+
+  # Find the index of first occurrence of substring
+  fn index_of(self, needle: String) -> Option<Int>
+    if needle.length == 0
+      return Some(0)
+    end
+
+    if needle.length > self.length
+      return None
+    end
+
+    let max_offset = self.length - needle.length
+    let mut i = 0
+
+    while i <= max_offset
+      let mut found = true
+      let mut j = 0
+
+      while j < needle.length
+        if self.char_at(i + j) != needle.char_at(j)
+          found = false
+          break
+        end
+        j = j + 1
+      end
+
+      if found
+        return Some(i)
+      end
+
+      i = i + 1
+    end
+
+    None
+  end
+
+  # Get the length of the string
+  fn len(self) -> Int
+    self.length
+  end
+
+  # Check if string is empty
+  fn is_empty(self) -> Bool
+    self.length == 0
+  end
+
+  # Concatenate two strings
+  fn concat(self, other: String) -> String
+    __builtin_string_concat(self, other)
+  end
+
+  # Repeat string n times
+  fn repeat(self, n: Int) -> String
+    if n <= 0
+      return ""
+    end
+
+    let mut result = ""
+    let mut i = 0
+
+    while i < n
+      result = result.concat(self)
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Trim whitespace from both ends
+  fn trim(self) -> String
+    self.trim_start().trim_end()
+  end
+
+  # Trim whitespace from start
+  fn trim_start(self) -> String
+    let mut start = 0
+
+    while start < self.length
+      let c = self.char_at(start)
+      if !is_whitespace(c)
+        break
+      end
+      start = start + 1
+    end
+
+    if start == self.length
+      return ""
+    end
+
+    self.slice(start, self.length)
+  end
+
+  # Trim whitespace from end
+  fn trim_end(self) -> String
+    let mut end = self.length
+
+    while end > 0
+      let c = self.char_at(end - 1)
+      if !is_whitespace(c)
+        break
+      end
+      end = end - 1
+    end
+
+    if end == 0
+      return ""
+    end
+
+    self.slice(0, end)
+  end
+
+  # Replace all occurrences of pattern with replacement
+  fn replace(self, pattern: String, replacement: String) -> String
+    if pattern.length == 0
+      return self
+    end
+
+    let mut result = ""
+    let mut pos = 0
+
+    while pos < self.length
+      match self.slice(pos, self.length).index_of(pattern)
+        Some(idx) ->
+          # Add text before match
+          if idx > 0
+            result = result.concat(self.slice(pos, pos + idx))
+          end
+          # Add replacement
+          result = result.concat(replacement)
+          # Move past the pattern
+          pos = pos + idx + pattern.length
+        None ->
+          # No more matches, add rest of string
+          result = result.concat(self.slice(pos, self.length))
+          break
+      end
+    end
+
+    result
+  end
+
+  # Split string by delimiter
+  fn split(self, delimiter: String) -> [String]
+    if delimiter.length == 0
+      panic("Cannot split by empty delimiter")
+    end
+
+    let mut parts = []
+    let mut start = 0
+    let mut pos = 0
+
+    while pos < self.length
+      match self.slice(pos, self.length).index_of(delimiter)
+        Some(idx) ->
+          # Add part before delimiter
+          parts.push(self.slice(start, pos + idx))
+          # Move past delimiter
+          pos = pos + idx + delimiter.length
+          start = pos
+        None ->
+          # No more delimiters
+          break
+      end
+    end
+
+    # Add remaining part
+    if start < self.length
+      parts.push(self.slice(start, self.length))
+    end
+
+    parts
+  end
+end
+
+# Helper function to check if character is whitespace
+fn is_whitespace(c: Char) -> Bool
+  c == ' ' || c == '\t' || c == '\n' || c == '\r'
+end
+
+# Create a string from a character repeated n times
+fn from_char(c: Char, n: Int) -> String
+  __builtin_char_to_string(c).repeat(n)
+end
+
+# Join an array of strings with a separator
+fn join(parts: [String], separator: String) -> String
+  if parts.len() == 0
+    return ""
+  end
+
+  if parts.len() == 1
+    return parts[0]
+  end
+
+  let mut result = parts[0]
+  let mut i = 1
+
+  while i < parts.len()
+    result = result.concat(separator).concat(parts[i])
+    i = i + 1
+  end
+
+  result
+end

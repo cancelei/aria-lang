@@ -1,0 +1,273 @@
+# Aria Standard Library - Option Type
+# Representing optional values that may or may not exist
+
+# Option type for values that may be absent
+enum Option<T>
+  Some(T)
+  None
+end
+
+impl Option<T>
+  # Check if option is Some
+  fn is_some(self) -> Bool
+    match self
+      Some(_) -> true
+      None -> false
+    end
+  end
+
+  # Check if option is None
+  fn is_none(self) -> Bool
+    match self
+      Some(_) -> false
+      None -> true
+    end
+  end
+
+  # Unwrap the Some value, panic if None
+  fn unwrap(self) -> T
+    match self
+      Some(value) -> value
+      None -> panic("called Option::unwrap() on a None value")
+    end
+  end
+
+  # Unwrap with custom panic message
+  fn expect(self, message: String) -> T
+    match self
+      Some(value) -> value
+      None -> panic(message)
+    end
+  end
+
+  # Unwrap or return default value
+  fn unwrap_or(self, default: T) -> T
+    match self
+      Some(value) -> value
+      None -> default
+    end
+  end
+
+  # Unwrap or compute default value
+  fn unwrap_or_else(self, f: Fn() -> T) -> T
+    match self
+      Some(value) -> value
+      None -> f()
+    end
+  end
+
+  # Map Some value to another type
+  fn map<U>(self, f: Fn(T) -> U) -> Option<U>
+    match self
+      Some(value) -> Some(f(value))
+      None -> None
+    end
+  end
+
+  # Map Some value or return default
+  fn map_or<U>(self, default: U, f: Fn(T) -> U) -> U
+    match self
+      Some(value) -> f(value)
+      None -> default
+    end
+  end
+
+  # Map Some value or compute default
+  fn map_or_else<U>(self, default: Fn() -> U, f: Fn(T) -> U) -> U
+    match self
+      Some(value) -> f(value)
+      None -> default()
+    end
+  end
+
+  # Apply function if Some, otherwise return None
+  fn and_then<U>(self, f: Fn(T) -> Option<U>) -> Option<U>
+    match self
+      Some(value) -> f(value)
+      None -> None
+    end
+  end
+
+  # Return self if Some, otherwise return other
+  fn or(self, other: Option<T>) -> Option<T>
+    match self
+      Some(_) -> self
+      None -> other
+    end
+  end
+
+  # Return self if Some, otherwise compute other
+  fn or_else(self, f: Fn() -> Option<T>) -> Option<T>
+    match self
+      Some(_) -> self
+      None -> f()
+    end
+  end
+
+  # Filter option based on predicate
+  fn filter(self, predicate: Fn(T) -> Bool) -> Option<T>
+    match self
+      Some(value) ->
+        if predicate(value)
+          Some(value)
+        else
+          None
+        end
+      None -> None
+    end
+  end
+
+  # Convert Option<Option<T>> to Option<T>
+  fn flatten(self) -> Option<T>
+    match self
+      Some(Some(value)) -> Some(value)
+      Some(None) -> None
+      None -> None
+    end
+  end
+
+  # Check if Some value equals given value
+  fn contains(self, value: T) -> Bool
+    match self
+      Some(v) -> v == value
+      None -> false
+    end
+  end
+
+  # Return Some if both self and other are Some
+  fn zip<U>(self, other: Option<U>) -> Option<(T, U)>
+    match self
+      Some(a) ->
+        match other
+          Some(b) -> Some((a, b))
+          None -> None
+        end
+      None -> None
+    end
+  end
+
+  # Apply function to both options if both are Some
+  fn zip_with<U, R>(self, other: Option<U>, f: Fn(T, U) -> R) -> Option<R>
+    match self
+      Some(a) ->
+        match other
+          Some(b) -> Some(f(a, b))
+          None -> None
+        end
+      None -> None
+    end
+  end
+
+  # Unzip Option<(T, U)> into (Option<T>, Option<U>)
+  fn unzip(self) -> (Option<T>, Option<U>)
+    match self
+      Some((a, b)) -> (Some(a), Some(b))
+      None -> (None, None)
+    end
+  end
+
+  # Convert to Result with error value
+  fn ok_or<E>(self, err: E) -> Result<T, E>
+    match self
+      Some(value) -> Ok(value)
+      None -> Err(err)
+    end
+  end
+
+  # Convert to Result with computed error
+  fn ok_or_else<E>(self, f: Fn() -> E) -> Result<T, E>
+    match self
+      Some(value) -> Ok(value)
+      None -> Err(f())
+    end
+  end
+
+  # Transpose Option<Result<T, E>> to Result<Option<T>, E>
+  fn transpose(self) -> Result<Option<T>, E>
+    match self
+      Some(Ok(value)) -> Ok(Some(value))
+      Some(Err(err)) -> Err(err)
+      None -> Ok(None)
+    end
+  end
+
+  # Clone the contained value if present
+  fn cloned(self) -> Option<T>
+    match self
+      Some(value) -> Some(value.clone())
+      None -> None
+    end
+  end
+
+  # Replace the value and return the old value
+  fn replace(mut self, value: T) -> Option<T>
+    let old = self
+    self = Some(value)
+    old
+  end
+
+  # Take the value out, leaving None in its place
+  fn take(mut self) -> Option<T>
+    let value = self
+    self = None
+    value
+  end
+end
+
+# Helper function to create Some variant
+fn Some<T>(value: T) -> Option<T>
+  Option::Some(value)
+end
+
+# Helper function to create None variant
+fn None<T>() -> Option<T>
+  Option::None
+end
+
+# Collect array of Options into Option of array
+# Returns None if any element is None
+fn collect_options<T>(options: [Option<T>]) -> Option<[T]>
+  let mut values: [T] = []
+  let mut i = 0
+
+  while i < options.len()
+    match options[i]
+      Some(value) -> values.push(value)
+      None -> return None
+    end
+    i = i + 1
+  end
+
+  Some(values)
+end
+
+# Filter array, keeping only Some values
+fn filter_some<T>(options: [Option<T>]) -> [T]
+  let mut values: [T] = []
+  let mut i = 0
+
+  while i < options.len()
+    match options[i]
+      Some(value) -> values.push(value)
+      None -> {}
+    end
+    i = i + 1
+  end
+
+  values
+end
+
+# Find first Some value in array
+fn find_some<T>(options: [Option<T>]) -> Option<T>
+  let mut i = 0
+
+  while i < options.len()
+    match options[i]
+      Some(value) -> return Some(value)
+      None -> {}
+    end
+    i = i + 1
+  end
+
+  None
+end

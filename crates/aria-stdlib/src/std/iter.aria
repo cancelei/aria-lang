@@ -1,0 +1,277 @@
+# Aria Standard Library - Iterator Trait
+# Iterator protocol and methods
+
+# Iterator trait for types that can be iterated over
+trait Iterator<T>
+  # Advances the iterator and returns the next value
+  fn next(mut self) -> Option<T>
+end
+
+# Trait for types that can be converted into an iterator
+trait IntoIterator<T>
+  # Converts this type into an iterator
+  fn into_iter(self) -> Iterator<T>
+end
+
+# Range iterator
+struct RangeIterator
+  current: Int
+  end: Int
+  inclusive: Bool
+end
+
+impl Iterator<Int> for RangeIterator
+  fn next(mut self) -> Option<Int>
+    if self.inclusive
+      if self.current <= self.end
+        let value = self.current
+        self.current = self.current + 1
+        Some(value)
+      else
+        None
+      end
+    else
+      if self.current < self.end
+        let value = self.current
+        self.current = self.current + 1
+        Some(value)
+      else
+        None
+      end
+    end
+  end
+end
+
+# Array iterator
+struct ArrayIterator<T>
+  array: [T]
+  index: Int
+end
+
+impl Iterator<T> for ArrayIterator<T>
+  fn next(mut self) -> Option<T>
+    if self.index < self.array.len()
+      let value = self.array[self.index]
+      self.index = self.index + 1
+      Some(value)
+    else
+      None
+    end
+  end
+end
+
+# Extension methods for Iterator trait
+impl Iterator<T>
+  # Collects the iterator into a list
+  fn collect(self) -> [T]
+    let mut result = []
+    loop
+      match self.next()
+        Some(value) -> result.push(value)
+        None -> break
+      end
+    end
+    result
+  end
+
+  # Maps each element using function f
+  fn map(self, f: Fn(T) -> U) -> Iterator<U>
+    # TODO: Return mapped iterator
+    self
+  end
+
+  # Filters elements using predicate
+  fn filter(self, predicate: Fn(T) -> Bool) -> Iterator<T>
+    # TODO: Return filtered iterator
+    self
+  end
+
+  # Takes the first n elements
+  fn take(self, n: Int) -> Iterator<T>
+    # TODO: Return take iterator
+    self
+  end
+
+  # Skips the first n elements
+  fn skip(self, n: Int) -> Iterator<T>
+    # TODO: Return skip iterator
+    self
+  end
+
+  # Chains two iterators together
+  fn chain(self, other: Iterator<T>) -> Iterator<T>
+    # TODO: Return chained iterator
+    self
+  end
+
+  # Enumerates elements with their index
+  fn enumerate(self) -> Iterator<(Int, T)>
+    # TODO: Return enumerated iterator
+    self
+  end
+
+  # Zips two iterators together
+  fn zip(self, other: Iterator<U>) -> Iterator<(T, U)>
+    # TODO: Return zipped iterator
+    self
+  end
+
+  # Reduces the iterator to a single value
+  fn fold(self, initial: U, f: Fn(U, T) -> U) -> U
+    let mut acc = initial
+    loop
+      match self.next()
+        Some(value) -> acc = f(acc, value)
+        None -> break
+      end
+    end
+    acc
+  end
+
+  # Returns the sum of all elements
+  fn sum(self) -> T
+    # TODO: Requires numeric trait bounds
+    self.fold(0, |acc, x| acc + x)
+  end
+
+  # Returns the product of all elements
+  fn product(self) -> T
+    # TODO: Requires numeric trait bounds
+    self.fold(1, |acc, x| acc * x)
+  end
+
+  # Returns the maximum element
+  fn max(self) -> Option<T>
+    # TODO: Requires Ord trait
+    None
+  end
+
+  # Returns the minimum element
+  fn min(self) -> Option<T>
+    # TODO: Requires Ord trait
+    None
+  end
+
+  # Counts the number of elements
+  fn count(self) -> Int
+    let mut count = 0
+    loop
+      match self.next()
+        Some(_) -> count = count + 1
+        None -> break
+      end
+    end
+    count
+  end
+
+  # Returns true if any element matches the predicate
+  fn any(self, predicate: Fn(T) -> Bool) -> Bool
+    loop
+      match self.next()
+        Some(value) ->
+          if predicate(value)
+            return true
+          end
+        None -> break
+      end
+    end
+    false
+  end
+
+  # Returns true if all elements match the predicate
+  fn all(self, predicate: Fn(T) -> Bool) -> Bool
+    loop
+      match self.next()
+        Some(value) ->
+          if !predicate(value)
+            return false
+          end
+        None -> break
+      end
+    end
+    true
+  end
+
+  # Finds the first element matching the predicate
+  fn find(self, predicate: Fn(T) -> Bool) -> Option<T>
+    loop
+      match self.next()
+        Some(value) ->
+          if predicate(value)
+            return Some(value)
+          end
+        None -> break
+      end
+    end
+    None
+  end
+
+  # Returns the nth element
+  fn nth(mut self, n: Int) -> Option<T>
+    let mut i = 0
+    loop
+      match self.next()
+        Some(value) ->
+          if i == n
+            return Some(value)
+          end
+          i = i + 1
+        None -> break
+      end
+    end
+    None
+  end
+
+  # Returns the first element
+  fn first(self) -> Option<T>
+    self.next()
+  end
+
+  # Returns the last element
+  fn last(mut self) -> Option<T>
+    let mut last_value = None
+    loop
+      match self.next()
+        Some(value) -> last_value = Some(value)
+        None -> break
+      end
+    end
+    last_value
+  end
+
+  # Flattens an iterator of iterators
+  fn flatten(self) -> Iterator<T>
+    # TODO: Return flattened iterator
+    self
+  end
+
+  # Calls a function on each element
+  fn for_each(self, f: Fn(T))
+    loop
+      match self.next()
+        Some(value) -> f(value)
+        None -> break
+      end
+    end
+  end
+
+  # Partitions elements into two lists based on predicate
+  fn partition(self, predicate: Fn(T) -> Bool) -> ([T], [T])
+    let mut true_list = []
+    let mut false_list = []
+
+    loop
+      match self.next()
+        Some(value) ->
+          if predicate(value)
+            true_list.push(value)
+          else
+            false_list.push(value)
+          end
+        None -> break
+      end
+    end
+
+    (true_list, false_list)
+  end
+end

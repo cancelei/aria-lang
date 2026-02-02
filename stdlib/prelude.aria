@@ -1,0 +1,59 @@
+# Aria Standard Library - Prelude
+# Automatically imported into every Aria program
+
+# Import and re-export core types
+import "./core/option.aria" as opt
+import "./core/result.aria" as res
+import "./core/mod.aria" as core
+import "./io/mod.aria" as io
+
+# Core types - automatically available
+export opt::Option
+export opt::Some
+export opt::None
+export res::Result
+export res::Ok
+export res::Err
+
+# Type aliases
+export core::Int
+export core::Float
+export core::Bool
+export core::String
+export core::Char
+export core::Bytes
+
+# Core utility functions
+export core::panic
+export core::assert
+export core::assert_eq
+export core::assert_ne
+export core::unreachable
+export core::todo
+export core::unimplemented
+export core::to_string
+export core::min
+export core::max
+export core::clamp
+
+# I/O functions - commonly used
+export io::print
+export io::println
+export io::eprint
+export io::eprintln
+export io::read_line
+export io::read_file
+export io::write_file
+
+# Core traits
+export core::Default
+export core::Clone
+export core::PartialEq
+export core::Eq
+export core::PartialOrd
+export core::Ord
+export core::Display
+export core::Debug
+
+# Note: These are automatically imported, so users don't need to import them manually
+# Users can still explicitly import other parts of the stdlib as needed

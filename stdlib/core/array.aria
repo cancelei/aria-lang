@@ -1,0 +1,438 @@
+# Aria Standard Library - Array Operations
+# Pure Aria implementation of functional array methods
+
+# Map: Transform each element of an array using a function
+fn map<T, U>(self: [T], f: Fn(T) -> U) -> [U]
+  let mut result: [U] = []
+  let mut i = 0
+
+  while i < self.len()
+    result.push(f(self[i]))
+    i = i + 1
+  end
+
+  result
+end
+
+# Filter: Keep only elements that satisfy a predicate
+fn filter<T>(self: [T], f: Fn(T) -> Bool) -> [T]
+  let mut result: [T] = []
+  let mut i = 0
+
+  while i < self.len()
+    let element = self[i]
+    if f(element)
+      result.push(element)
+    end
+    i = i + 1
+  end
+
+  result
+end
+
+# Fold (Reduce): Accumulate a value by applying a function to each element
+fn fold<T, Acc>(self: [T], init: Acc, f: Fn(Acc, T) -> Acc) -> Acc
+  let mut accumulator = init
+  let mut i = 0
+
+  while i < self.len()
+    accumulator = f(accumulator, self[i])
+    i = i + 1
+  end
+
+  accumulator
+end
+
+# Get the length of an array
+fn len<T>(self: [T]) -> Int
+  # Use native builtin
+  __builtin_array_len(self)
+end
+
+# Check if array is empty
+fn is_empty<T>(self: [T]) -> Bool
+  self.len() == 0
+end
+
+# Get element at index with bounds checking
+fn get<T>(self: [T], index: Int) -> Option<T>
+  if index >= 0 && index < self.len()
+    Some(self[index])
+  else
+    None
+  end
+end
+
+# Get first element
+fn first<T>(self: [T]) -> Option<T>
+  if self.is_empty()
+    None
+  else
+    Some(self[0])
+  end
+end
+
+# Get last element
+fn last<T>(self: [T]) -> Option<T>
+  if self.is_empty()
+    None
+  else
+    Some(self[self.len() - 1])
+  end
+end
+
+# Check if any element satisfies predicate
+fn any<T>(self: [T], predicate: Fn(T) -> Bool) -> Bool
+  let mut i = 0
+
+  while i < self.len()
+    if predicate(self[i])
+      return true
+    end
+    i = i + 1
+  end
+
+  false
+end
+
+# Check if all elements satisfy predicate
+fn all<T>(self: [T], predicate: Fn(T) -> Bool) -> Bool
+  let mut i = 0
+
+  while i < self.len()
+    if !predicate(self[i])
+      return false
+    end
+    i = i + 1
+  end
+
+  true
+end
+
+# Find first element matching predicate
+fn find<T>(self: [T], predicate: Fn(T) -> Bool) -> Option<T>
+  let mut i = 0
+
+  while i < self.len()
+    let element = self[i]
+    if predicate(element)
+      return Some(element)
+    end
+    i = i + 1
+  end
+
+  None
+end
+
+# Find index of first element matching predicate
+fn find_index<T>(self: [T], predicate: Fn(T) -> Bool) -> Option<Int>
+  let mut i = 0
+
+  while i < self.len()
+    if predicate(self[i])
+      return Some(i)
+    end
+    i = i + 1
+  end
+
+  None
+end
+
+# Check if array contains an element
+fn contains<T>(self: [T], value: T) -> Bool
+  let mut i = 0
+
+  while i < self.len()
+    if self[i] == value
+      return true
+    end
+    i = i + 1
+  end
+
+  false
+end
+
+# Count elements matching predicate
+fn count<T>(self: [T], predicate: Fn(T) -> Bool) -> Int
+  let mut count = 0
+  let mut i = 0
+
+  while i < self.len()
+    if predicate(self[i])
+      count = count + 1
+    end
+    i = i + 1
+  end
+
+  count
+end
+
+# Take first n elements
+fn take<T>(self: [T], n: Int) -> [T]
+  let mut result: [T] = []
+  let limit = if n < self.len() { n } else { self.len() }
+  let mut i = 0
+
+  while i < limit
+    result.push(self[i])
+    i = i + 1
+  end
+
+  result
+end
+
+# Skip first n elements
+fn skip<T>(self: [T], n: Int) -> [T]
+  let mut result: [T] = []
+  let start = if n < self.len() { n } else { self.len() }
+  let mut i = start
+
+  while i < self.len()
+    result.push(self[i])
+    i = i + 1
+  end
+
+  result
+end
+
+# Take elements while predicate is true
+fn take_while<T>(self: [T], predicate: Fn(T) -> Bool) -> [T]
+  let mut result: [T] = []
+  let mut i = 0
+
+  while i < self.len()
+    if !predicate(self[i])
+      break
+    end
+    result.push(self[i])
+    i = i + 1
+  end
+
+  result
+end
+
+# Skip elements while predicate is true
+fn skip_while<T>(self: [T], predicate: Fn(T) -> Bool) -> [T]
+  let mut result: [T] = []
+  let mut started = false
+  let mut i = 0
+
+  while i < self.len()
+    if !started && predicate(self[i])
+      i = i + 1
+      continue
+    end
+
+    started = true
+    result.push(self[i])
+    i = i + 1
+  end
+
+  result
+end
+
+# Reverse an array
+fn reverse<T>(self: [T]) -> [T]
+  let mut result: [T] = []
+  let mut i = self.len() - 1
+
+  while i >= 0
+    result.push(self[i])
+    i = i - 1
+  end
+
+  result
+end
+
+# Concatenate two arrays
+fn concat<T>(self: [T], other: [T]) -> [T]
+  let mut result: [T] = []
+  let mut i = 0
+
+  # Add elements from first array
+  while i < self.len()
+    result.push(self[i])
+    i = i + 1
+  end
+
+  # Add elements from second array
+  i = 0
+  while i < other.len()
+    result.push(other[i])
+    i = i + 1
+  end
+
+  result
+end
+
+# Flatten an array of arrays
+fn flatten<T>(self: [[T]]) -> [T]
+  let mut result: [T] = []
+  let mut i = 0
+
+  while i < self.len()
+    let inner = self[i]
+    let mut j = 0
+
+    while j < inner.len()
+      result.push(inner[j])
+      j = j + 1
+    end
+
+    i = i + 1
+  end
+
+  result
+end
+
+# FlatMap: Map and flatten in one operation
+fn flat_map<T, U>(self: [T], f: Fn(T) -> [U]) -> [U]
+  let mut result: [U] = []
+  let mut i = 0
+
+  while i < self.len()
+    let mapped = f(self[i])
+    let mut j = 0
+
+    while j < mapped.len()
+      result.push(mapped[j])
+      j = j + 1
+    end
+
+    i = i + 1
+  end
+
+  result
+end
+
+# Partition array into two based on predicate
+fn partition<T>(self: [T], predicate: Fn(T) -> Bool) -> ([T], [T])
+  let mut true_list: [T] = []
+  let mut false_list: [T] = []
+  let mut i = 0
+
+  while i < self.len()
+    let element = self[i]
+    if predicate(element)
+      true_list.push(element)
+    else
+      false_list.push(element)
+    end
+    i = i + 1
+  end
+
+  (true_list, false_list)
+end
+
+# Zip two arrays together
+fn zip<T, U>(self: [T], other: [U]) -> [(T, U)]
+  let mut result: [(T, U)] = []
+  let min_len = if self.len() < other.len() { self.len() } else { other.len() }
+  let mut i = 0
+
+  while i < min_len
+    result.push((self[i], other[i]))
+    i = i + 1
+  end
+
+  result
+end
+
+# Sum numeric array
+fn sum(self: [Int]) -> Int
+  self.fold(0, fn(acc, x) -> acc + x)
+end
+
+# Sum float array
+fn sum_f64(self: [Float]) -> Float
+  self.fold(0.0, fn(acc, x) -> acc + x)
+end
+
+# Find maximum value in array
+fn max(self: [Int]) -> Option<Int>
+  if self.is_empty()
+    return None
+  end
+
+  let mut max_val = self[0]
+  let mut i = 1
+
+  while i < self.len()
+    if self[i] > max_val
+      max_val = self[i]
+    end
+    i = i + 1
+  end
+
+  Some(max_val)
+end
+
+# Find minimum value in array
+fn min(self: [Int]) -> Option<Int>
+  if self.is_empty()
+    return None
+  end
+
+  let mut min_val = self[0]
+  let mut i = 1
+
+  while i < self.len()
+    if self[i] < min_val
+      min_val = self[i]
+    end
+    i = i + 1
+  end
+
+  Some(min_val)
+end
+
+# Create array with repeated value
+fn repeat<T>(value: T, count: Int) -> [T]
+  let mut result: [T] = []
+  let mut i = 0
+
+  while i < count
+    result.push(value)
+    i = i + 1
+  end
+
+  result
+end
+
+# Create array from range
+fn range(start: Int, end: Int) -> [Int]
+  let mut result: [Int] = []
+  let mut i = start
+
+  while i < end
+    result.push(i)
+    i = i + 1
+  end
+
+  result
+end
+
+# Create array from range with step
+fn range_step(start: Int, end: Int, step: Int) -> [Int]
+  if step == 0
+    panic("Step cannot be zero")
+  end
+
+  let mut result: [Int] = []
+
+  if step > 0
+    let mut i = start
+    while i < end
+      result.push(i)
+      i = i + step
+    end
+  else
+    let mut i = start
+    while i > end
+      result.push(i)
+      i = i + step
+    end
+  end
+
+  result
+end

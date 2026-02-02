@@ -1,0 +1,22 @@
+# Test struct field type checking
+
+struct Point
+  x: Int
+  y: Int
+end
+
+struct Person
+  name: String
+  age: Int
+end
+
+fn main()
+  let p = Point(x: 10, y: 20)
+  let sum: Int = p.x + p.y
+  println(sum)
+
+  let person = Person(name: "Alice", age: 30)
+  let person_age: Int = person.age
+  println(person.name)
+  println(person_age)
+end

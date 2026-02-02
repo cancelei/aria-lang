@@ -1,0 +1,438 @@
+# BioFlow - K-mer Tests
+# Comprehensive tests for k-mer counting and analysis
+
+import core::sequence::{Sequence}
+import algorithms::kmer::{
+  KMer, KMerCounts, count_kmers, most_frequent_kmers,
+  kmer_distance, find_unique_kmers, kmer_spectrum,
+  count_kmers_canonical, shared_kmers, kmer_positions
+}
+
+fn main() -> Int
+  println("Running K-mer Tests")
+  println("===================\n")
+
+  let mut passed = 0
+  let mut failed = 0
+
+  if test_kmer_creation()
+    passed = passed + 1
+    println("[PASS] test_kmer_creation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_creation")
+  end
+
+  if test_kmer_reverse_complement()
+    passed = passed + 1
+    println("[PASS] test_kmer_reverse_complement")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_reverse_complement")
+  end
+
+  if test_kmer_canonical()
+    passed = passed + 1
+    println("[PASS] test_kmer_canonical")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_canonical")
+  end
+
+  if test_count_kmers()
+    passed = passed + 1
+    println("[PASS] test_count_kmers")
+  else
+    failed = failed + 1
+    println("[FAIL] test_count_kmers")
+  end
+
+  if test_kmer_counts_operations()
+    passed = passed + 1
+    println("[PASS] test_kmer_counts_operations")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_counts_operations")
+  end
+
+  if test_most_frequent_kmers()
+    passed = passed + 1
+    println("[PASS] test_most_frequent_kmers")
+  else
+    failed = failed + 1
+    println("[FAIL] test_most_frequent_kmers")
+  end
+
+  if test_unique_kmers()
+    passed = passed + 1
+    println("[PASS] test_unique_kmers")
+  else
+    failed = failed + 1
+    println("[FAIL] test_unique_kmers")
+  end
+
+  if test_kmer_distance()
+    passed = passed + 1
+    println("[PASS] test_kmer_distance")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_distance")
+  end
+
+  if test_kmer_spectrum()
+    passed = passed + 1
+    println("[PASS] test_kmer_spectrum")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_spectrum")
+  end
+
+  if test_kmer_positions()
+    passed = passed + 1
+    println("[PASS] test_kmer_positions")
+  else
+    failed = failed + 1
+    println("[FAIL] test_kmer_positions")
+  end
+
+  if test_shared_kmers()
+    passed = passed + 1
+    println("[PASS] test_shared_kmers")
+  else
+    failed = failed + 1
+    println("[FAIL] test_shared_kmers")
+  end
+
+  println("\n===================")
+  println("Passed: " + passed.to_string())
+  println("Failed: " + failed.to_string())
+
+  if failed > 0 then 1 else 0 end
+end
+
+# Test: K-mer Creation
+fn test_kmer_creation() -> Bool
+  let kmer = KMer::new("ATG")
+  if !kmer.is_ok()
+    return false
+  end
+
+  let k = kmer.unwrap()
+  if k.k != 3
+    return false
+  end
+  if k.sequence != "ATG"
+    return false
+  end
+
+  # Lowercase should be normalized
+  let kmer2 = KMer::new("atgc")
+  if !kmer2.is_ok()
+    return false
+  end
+  if kmer2.unwrap().sequence != "ATGC"
+    return false
+  end
+
+  true
+end
+
+# Test: K-mer Reverse Complement
+fn test_kmer_reverse_complement() -> Bool
+  let kmer = KMer::new("ATG").unwrap()
+  let rc = kmer.reverse_complement()
+
+  # ATG -> complement TAC -> reverse CAT
+  if rc.sequence != "CAT"
+    return false
+  end
+
+  if rc.k != kmer.k
+    return false
+  end
+
+  # Double reverse complement should return original
+  let double_rc = rc.reverse_complement()
+  if double_rc.sequence != kmer.sequence
+    return false
+  end
+
+  true
+end
+
+# Test: K-mer Canonical Form
+fn test_kmer_canonical() -> Bool
+  # ATG and CAT - CAT < ATG lexicographically
+  let kmer1 = KMer::new("ATG").unwrap()
+  let canonical1 = kmer1.canonical()
+  if canonical1.sequence != "ATG"  # ATG < CAT
+    return false
+  end
+
+  # Test with a k-mer where RC comes first
+  let kmer2 = KMer::new("TAA").unwrap()
+  let canonical2 = kmer2.canonical()
+  # TAA -> RC is TTA
+  # TAA vs TTA: TAA < TTA
+  if canonical2.sequence != "TAA"
+    return false
+  end
+
+  # Palindromic k-mer (same as its RC)
+  let kmer3 = KMer::new("ATAT").unwrap()
+  let canonical3 = kmer3.canonical()
+  # ATAT -> RC is ATAT
+  if canonical3.sequence != "ATAT"
+    return false
+  end
+
+  true
+end
+
+# Test: Count K-mers
+fn test_count_kmers() -> Bool
+  let seq = Sequence::new("ATGATGATG").unwrap()
+
+  # Count 3-mers
+  let counts = count_kmers(seq, 3)
+
+  # Total should be length - k + 1 = 9 - 3 + 1 = 7
+  if counts.total_kmers != 7
+    return false
+  end
+
+  # Should have ATG appearing multiple times
+  let atg_count = counts.get_count("ATG")
+  if atg_count != 3  # Positions 0, 3, 6
+    return false
+  end
+
+  # K must equal what we specified
+  if counts.k != 3
+    return false
+  end
+
+  true
+end
+
+# Test: K-mer Counts Operations
+fn test_kmer_counts_operations() -> Bool
+  let mut counts = KMerCounts::new(3)
+
+  # Add some k-mers
+  counts.add("ATG", 5)
+  counts.add("GCA", 3)
+  counts.add("TTA", 1)
+
+  if counts.unique_count() != 3
+    return false
+  end
+
+  if counts.total_kmers != 9
+    return false
+  end
+
+  if counts.get_count("ATG") != 5
+    return false
+  end
+
+  if counts.get_count("GCA") != 3
+    return false
+  end
+
+  # Non-existent k-mer should return 0
+  if counts.get_count("CCC") != 0
+    return false
+  end
+
+  # Frequency
+  let freq = counts.frequency("ATG")
+  if !approx_eq(freq, 5.0 / 9.0, 0.001)
+    return false
+  end
+
+  true
+end
+
+# Test: Most Frequent K-mers
+fn test_most_frequent_kmers() -> Bool
+  let seq = Sequence::new("ATGATGATGATGATG").unwrap()
+  let top = most_frequent_kmers(seq, 3, 3)
+
+  # Should return at most 3
+  if top.len() > 3
+    return false
+  end
+
+  # First should be ATG (most frequent)
+  if top.len() > 0
+    let (kmer, count) = top[0]
+    if kmer != "ATG"
+      return false
+    end
+    if count < 1
+      return false
+    end
+  end
+
+  true
+end
+
+# Test: Unique K-mers
+fn test_unique_kmers() -> Bool
+  let seq = Sequence::new("ATGCATGC").unwrap()
+  let unique = find_unique_kmers(seq, 4)
+
+  # All 4-mers should be unique or not
+  # ATGC, TGCA, GCAT, CATG, ATGC (repeat!)
+  # So ATGC appears twice, others once
+  # Unique ones: TGCA, GCAT, CATG
+
+  # Check that returned k-mers only appear once
+  let counts = count_kmers(seq, 4)
+  let mut i = 0
+  loop
+    if i >= unique.len()
+      break
+    end
+
+    if counts.get_count(unique[i]) != 1
+      return false
+    end
+
+    i = i + 1
+  end
+
+  true
+end
+
+# Test: K-mer Distance
+fn test_kmer_distance() -> Bool
+  # Same sequences should have distance 0
+  let seq1 = Sequence::new("ATGCATGC").unwrap()
+  let seq2 = Sequence::new("ATGCATGC").unwrap()
+  let dist1 = kmer_distance(seq1, seq2, 3)
+  if !approx_eq(dist1, 0.0, 0.001)
+    return false
+  end
+
+  # Completely different sequences should have distance close to 1
+  let seq3 = Sequence::new("AAAAAAAAAA").unwrap()
+  let seq4 = Sequence::new("CCCCCCCCCC").unwrap()
+  let dist2 = kmer_distance(seq3, seq4, 3)
+  if dist2 < 0.5  # Should be high
+    return false
+  end
+
+  # Distance should be in [0, 1]
+  if dist2 < 0.0 or dist2 > 1.0
+    return false
+  end
+
+  true
+end
+
+# Test: K-mer Spectrum
+fn test_kmer_spectrum() -> Bool
+  let seq = Sequence::new("ATGATGATGATG").unwrap()
+  let spectrum = kmer_spectrum(seq, 3)
+
+  # Spectrum should show distribution of counts
+  if spectrum.len() == 0
+    return false
+  end
+
+  # Sum of (count * num_kmers) should equal total k-mers
+  let mut total = 0
+  let mut i = 0
+  loop
+    if i >= spectrum.len()
+      break
+    end
+
+    let (count, num_kmers) = spectrum[i]
+    total = total + count * num_kmers
+
+    i = i + 1
+  end
+
+  # Total should be close to number of k-mers
+  let expected = seq.len() - 3 + 1
+  if total != expected
+    return false
+  end
+
+  true
+end
+
+# Test: K-mer Positions
+fn test_kmer_positions() -> Bool
+  let seq = Sequence::new("ATGATGATGATG").unwrap()
+  let positions = kmer_positions(seq, "ATG")
+
+  # ATG appears at positions 0, 3, 6, 9
+  if positions.len() != 4
+    return false
+  end
+
+  if positions[0] != 0
+    return false
+  end
+  if positions[1] != 3
+    return false
+  end
+  if positions[2] != 6
+    return false
+  end
+  if positions[3] != 9
+    return false
+  end
+
+  # Non-existent k-mer
+  let no_positions = kmer_positions(seq, "CCC")
+  if no_positions.len() != 0
+    return false
+  end
+
+  true
+end
+
+# Test: Shared K-mers
+fn test_shared_kmers() -> Bool
+  let seq1 = Sequence::new("ATGCATGC").unwrap()
+  let seq2 = Sequence::new("ATGCGTAC").unwrap()
+
+  let shared = shared_kmers(seq1, seq2, 3)
+
+  # Should have some shared k-mers
+  if shared.len() == 0
+    return false
+  end
+
+  # ATG should be shared
+  let mut has_atg = false
+  let mut i = 0
+  loop
+    if i >= shared.len()
+      break
+    end
+
+    if shared[i] == "ATG"
+      has_atg = true
+      break
+    end
+
+    i = i + 1
+  end
+
+  if !has_atg
+    return false
+  end
+
+  true
+end
+
+# Helper: Approximate floating point equality
+fn approx_eq(a: Float, b: Float, epsilon: Float) -> Bool
+  (a - b).abs() < epsilon
+end

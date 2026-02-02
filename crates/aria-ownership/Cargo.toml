@@ -1,0 +1,16 @@
+[package]
+name = "aria-ownership"
+description = "Ownership inference and analysis for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+aria-lexer = { path = "../aria-lexer" }
+smol_str = { workspace = true }
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

@@ -1,0 +1,422 @@
+# BioFlow - Sequencing Read Type
+# Combines sequence data with quality scores
+#
+# A Read represents a single sequencing read from a sequencer,
+# containing both the nucleotide sequence and per-base quality scores.
+
+import core::sequence::{Sequence, SequenceError, SequenceType}
+import core::quality::{QualityScores, QualityError, Q_HIGH}
+
+# Error types for read operations
+enum ReadError
+  SequenceError(SequenceError)
+  QualityError(QualityError)
+  LengthMismatch(seq_len: Int, qual_len: Int)
+  EmptyRead
+  InvalidPair
+end
+
+# Read orientation for paired-end sequencing
+enum ReadOrientation
+  Forward
+  Reverse
+end
+
+# A sequencing read combining sequence and quality
+struct Read
+  sequence: Sequence
+  quality: QualityScores
+  id: String
+  orientation: ReadOrientation
+
+  # Invariant: sequence and quality must have same length
+  invariant self.sequence.len() == self.quality.len() :
+    "Sequence and quality must have equal length"
+end
+
+impl Read
+  # Creates a new read from sequence and quality scores
+  fn new(
+    id: String,
+    sequence: Sequence,
+    quality: QualityScores
+  ) -> Result<Read, ReadError>
+    requires id.len() > 0 : "Read ID cannot be empty"
+    requires sequence.len() > 0 : "Sequence cannot be empty"
+    requires quality.len() > 0 : "Quality cannot be empty"
+    ensures result.is_ok() implies result.unwrap().len() == sequence.len()
+
+    if sequence.len() != quality.len()
+      return Err(ReadError::LengthMismatch(
+        seq_len: sequence.len(),
+        qual_len: quality.len()
+      ))
+    end
+
+    Ok(Read {
+      sequence: sequence,
+      quality: quality,
+      id: id,
+      orientation: ReadOrientation::Forward
+    })
+  end
+
+  # Creates a read from raw strings
+  fn from_strings(
+    id: String,
+    bases: String,
+    quality_string: String
+  ) -> Result<Read, ReadError>
+    requires id.len() > 0 : "Read ID cannot be empty"
+    requires bases.len() > 0 : "Bases cannot be empty"
+    requires quality_string.len() > 0 : "Quality string cannot be empty"
+
+    let sequence = match Sequence::new(bases)
+      Ok(seq) => seq
+      Err(e) => return Err(ReadError::SequenceError(e))
+    end
+
+    let quality = match QualityScores::from_phred33(quality_string)
+      Ok(q) => q
+      Err(e) => return Err(ReadError::QualityError(e))
+    end
+
+    Self::new(id, sequence, quality)
+  end
+
+  # Creates a read with orientation specified
+  fn with_orientation(
+    id: String,
+    sequence: Sequence,
+    quality: QualityScores,
+    orientation: ReadOrientation
+  ) -> Result<Read, ReadError>
+    requires id.len() > 0 : "Read ID cannot be empty"
+    ensures result.is_ok() implies result.unwrap().orientation == orientation
+
+    let mut read = Self::new(id, sequence, quality)?
+    read.orientation = orientation
+    Ok(read)
+  end
+
+  # Returns the length of the read
+  fn len(self) -> Int
+    ensures result > 0
+    ensures result == self.sequence.len()
+    ensures result == self.quality.len()
+
+    self.sequence.len()
+  end
+
+  # Calculates the average quality score
+  fn avg_quality(self) -> Float
+    ensures result >= 0.0 and result <= 40.0
+
+    self.quality.average()
+  end
+
+  # Checks if this is a high-quality read (avg >= Q30)
+  fn is_high_quality(self) -> Bool
+    self.avg_quality() >= Q_HIGH.to_float()
+  end
+
+  # Gets the base and quality at a specific position
+  fn base_quality_at(self, index: Int) -> Option<(Char, Int)>
+    requires index >= 0 : "Index must be non-negative"
+
+    let base = self.sequence.base_at(index)
+    let qual = self.quality.score_at(index)
+
+    match (base, qual)
+      (Some(b), Some(q)) => Some((b, q))
+      _ => None
+    end
+  end
+
+  # Calculates the GC content of the read
+  fn gc_content(self) -> Float
+    ensures result >= 0.0 and result <= 1.0
+
+    self.sequence.gc_content()
+  end
+
+  # Trims low-quality bases from the ends
+  fn trim_quality(self, min_quality: Int) -> Result<Read, ReadError>
+    requires min_quality >= 0 and min_quality <= 40
+    ensures result.is_ok() implies result.unwrap().len() <= self.len()
+
+    # Find first position with quality >= threshold
+    let mut start = 0
+    loop
+      if start >= self.len()
+        break
+      end
+
+      match self.quality.score_at(start)
+        Some(q) => if q >= min_quality then break end
+        None => break
+      end
+
+      start = start + 1
+    end
+
+    # Find last position with quality >= threshold
+    let mut end_pos = self.len() - 1
+    loop
+      if end_pos <= start
+        break
+      end
+
+      match self.quality.score_at(end_pos)
+        Some(q) => if q >= min_quality then break end
+        None => break
+      end
+
+      end_pos = end_pos - 1
+    end
+
+    # Check if any bases remain
+    if start > end_pos
+      return Err(ReadError::EmptyRead)
+    end
+
+    # Create trimmed read
+    let trimmed_seq = match self.sequence.subsequence(start, end_pos + 1)
+      Ok(s) => s
+      Err(e) => return Err(ReadError::SequenceError(e))
+    end
+
+    let trimmed_qual = match self.quality.slice(start, end_pos + 1)
+      Ok(q) => q
+      Err(e) => return Err(ReadError::QualityError(e))
+    end
+
+    Self::new(self.id.clone(), trimmed_seq, trimmed_qual)
+  end
+
+  # Trims a fixed number of bases from the start
+  fn trim_start(self, bases: Int) -> Result<Read, ReadError>
+    requires bases >= 0 : "Bases to trim must be non-negative"
+    requires bases < self.len() : "Cannot trim more bases than read length"
+    ensures result.is_ok() implies result.unwrap().len() == self.len() - bases
+
+    let trimmed_seq = match self.sequence.subsequence(bases, self.len())
+      Ok(s) => s
+      Err(e) => return Err(ReadError::SequenceError(e))
+    end
+
+    let trimmed_qual = match self.quality.slice(bases, self.len())
+      Ok(q) => q
+      Err(e) => return Err(ReadError::QualityError(e))
+    end
+
+    Self::new(self.id.clone(), trimmed_seq, trimmed_qual)
+  end
+
+  # Trims a fixed number of bases from the end
+  fn trim_end(self, bases: Int) -> Result<Read, ReadError>
+    requires bases >= 0 : "Bases to trim must be non-negative"
+    requires bases < self.len() : "Cannot trim more bases than read length"
+    ensures result.is_ok() implies result.unwrap().len() == self.len() - bases
+
+    let new_len = self.len() - bases
+
+    let trimmed_seq = match self.sequence.subsequence(0, new_len)
+      Ok(s) => s
+      Err(e) => return Err(ReadError::SequenceError(e))
+    end
+
+    let trimmed_qual = match self.quality.slice(0, new_len)
+      Ok(q) => q
+      Err(e) => return Err(ReadError::QualityError(e))
+    end
+
+    Self::new(self.id.clone(), trimmed_seq, trimmed_qual)
+  end
+
+  # Extracts a subsequence of the read
+  fn subread(self, start: Int, end: Int) -> Result<Read, ReadError>
+    requires start >= 0 : "Start must be non-negative"
+    requires end > start : "End must be greater than start"
+    requires end <= self.len() : "End must not exceed read length"
+    ensures result.is_ok() implies result.unwrap().len() == end - start
+
+    let sub_seq = match self.sequence.subsequence(start, end)
+      Ok(s) => s
+      Err(e) => return Err(ReadError::SequenceError(e))
+    end
+
+    let sub_qual = match self.quality.slice(start, end)
+      Ok(q) => q
+      Err(e) => return Err(ReadError::QualityError(e))
+    end
+
+    Self::new(self.id.clone() + "_sub", sub_seq, sub_qual)
+  end
+
+  # Masks low-quality bases with N
+  fn mask_low_quality(self, min_quality: Int) -> Read
+    requires min_quality >= 0 and min_quality <= 40
+    ensures result.len() == self.len()
+
+    let mut masked_bases = ""
+    let mut i = 0
+
+    loop
+      if i >= self.len()
+        break
+      end
+
+      let base = self.sequence.base_at(i).unwrap_or('N')
+      let qual = self.quality.score_at(i).unwrap_or(0)
+
+      if qual >= min_quality
+        masked_bases = masked_bases + base.to_string()
+      else
+        masked_bases = masked_bases + "N"
+      end
+
+      i = i + 1
+    end
+
+    # Create new sequence with masked bases
+    let masked_seq = Sequence::new(masked_bases).unwrap()
+
+    Read {
+      sequence: masked_seq,
+      quality: self.quality,
+      id: self.id.clone(),
+      orientation: self.orientation
+    }
+  end
+
+  # Returns the reverse complement of the read
+  fn reverse_complement(self) -> Read
+    requires self.sequence.seq_type == SequenceType::DNA
+    ensures result.len() == self.len()
+
+    let rev_comp_seq = self.sequence.reverse_complement()
+
+    # Reverse the quality scores too
+    let mut rev_qual_scores = []
+    let mut i = self.quality.len() - 1
+
+    loop
+      if i < 0
+        break
+      end
+
+      rev_qual_scores.push(self.quality.scores[i])
+      i = i - 1
+    end
+
+    let rev_qual = QualityScores::new(rev_qual_scores).unwrap()
+
+    Read {
+      sequence: rev_comp_seq,
+      quality: rev_qual,
+      id: self.id.clone() + "_rc",
+      orientation: match self.orientation
+        ReadOrientation::Forward => ReadOrientation::Reverse
+        ReadOrientation::Reverse => ReadOrientation::Forward
+      end
+    }
+  end
+
+  # Counts low-quality positions
+  fn count_low_quality_bases(self, threshold: Int) -> Int
+    requires threshold >= 0 and threshold <= 40
+    ensures result >= 0 and result <= self.len()
+
+    self.len() - self.quality.count_at_or_above(threshold)
+  end
+
+  # Calculates proportion of high-quality bases
+  fn high_quality_ratio(self) -> Float
+    ensures result >= 0.0 and result <= 1.0
+
+    self.quality.high_quality_ratio()
+  end
+
+  # Formats as FASTQ record
+  fn to_fastq(self) -> String
+    let header = "@" + self.id
+    let bases = self.sequence.bases
+    let separator = "+"
+    let quality = self.quality.to_phred33()
+
+    header + "\n" + bases + "\n" + separator + "\n" + quality + "\n"
+  end
+
+  # Parses a FASTQ record
+  fn from_fastq(lines: [String]) -> Result<Read, ReadError>
+    requires lines.len() >= 4 : "FASTQ record requires 4 lines"
+
+    let header = lines[0]
+    let bases = lines[1]
+    let quality_string = lines[3]
+
+    # Parse ID from header (remove @ prefix)
+    let id = if header.starts_with("@")
+      then header.slice(1, header.len())
+      else header
+    end
+
+    Self::from_strings(id, bases, quality_string)
+  end
+
+  # Returns a string representation
+  fn to_string(self) -> String
+    "Read { id: " + self.id +
+    ", length: " + self.len().to_string() +
+    ", avg_quality: " + self.avg_quality().to_string() +
+    " }"
+  end
+end
+
+# A paired-end read
+struct ReadPair
+  read1: Read
+  read2: Read
+  pair_id: String
+
+  # Invariant: both reads should have related IDs
+  invariant self.read1.id.starts_with(self.pair_id) or
+            self.read2.id.starts_with(self.pair_id) :
+    "Read IDs should be related to pair ID"
+end
+
+impl ReadPair
+  # Creates a new read pair
+  fn new(pair_id: String, read1: Read, read2: Read) -> Result<ReadPair, ReadError>
+    requires pair_id.len() > 0 : "Pair ID cannot be empty"
+
+    Ok(ReadPair {
+      read1: read1,
+      read2: read2,
+      pair_id: pair_id
+    })
+  end
+
+  # Calculates average quality across both reads
+  fn avg_quality(self) -> Float
+    ensures result >= 0.0 and result <= 40.0
+
+    let total_bases = self.read1.len() + self.read2.len()
+    let weighted_sum = self.read1.avg_quality() * self.read1.len().to_float() +
+                       self.read2.avg_quality() * self.read2.len().to_float()
+
+    weighted_sum / total_bases.to_float()
+  end
+
+  # Returns total length of both reads
+  fn total_length(self) -> Int
+    ensures result > 0
+    self.read1.len() + self.read2.len()
+  end
+
+  # Checks if both reads are high quality
+  fn is_high_quality(self) -> Bool
+    self.read1.is_high_quality() and self.read2.is_high_quality()
+  end
+end

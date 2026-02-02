@@ -1,0 +1,20 @@
+# Simple Aria program
+
+fn add(a: Int, b: Int) -> Int
+  a + b
+end
+
+fn greet(name: String)
+  print("Hello, #{name}!")
+end
+
+struct Point
+  x: Float
+  y: Float
+end
+
+enum Color
+  Red
+  Green
+  Blue
+end

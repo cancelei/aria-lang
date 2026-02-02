@@ -1,0 +1,149 @@
+{
+  "name": "aria-vscode",
+  "displayName": "Aria Lang",
+  "description": "Language support for Aria - the safe, expressive programming language",
+  "version": "0.1.0",
+  "publisher": "aria-lang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cancelei/aria-lang"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Themes",
+    "Formatters"
+  ],
+  "keywords": [
+    "aria",
+    "aria-lang",
+    "programming language",
+    "cyberpunk",
+    "contracts"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0a0a0a",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onLanguage:aria"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "aria",
+        "aliases": ["Aria", "aria"],
+        "extensions": [".aria"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "aria",
+        "scopeName": "source.aria",
+        "path": "./syntaxes/aria.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Aria Cyberpunk",
+        "uiTheme": "vs-dark",
+        "path": "./themes/cyberpunk.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "aria",
+        "path": "./snippets/aria.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Aria",
+      "properties": {
+        "aria.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Aria language server"
+        },
+        "aria.lsp.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to aria-lsp executable"
+        },
+        "aria.format.onSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format files on save"
+        },
+        "aria.contracts.checkLevel": {
+          "type": "string",
+          "enum": ["off", "runtime", "static", "full"],
+          "default": "runtime",
+          "description": "Contract checking level"
+        },
+        "aria.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable diagnostics"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "aria.restartServer",
+        "title": "Restart Language Server",
+        "category": "Aria"
+      },
+      {
+        "command": "aria.showSyntaxTree",
+        "title": "Show Syntax Tree",
+        "category": "Aria"
+      },
+      {
+        "command": "aria.runFile",
+        "title": "Run Current File",
+        "category": "Aria"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "aria.runFile",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorLangId == aria"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/node": "^18.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

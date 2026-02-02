@@ -1,0 +1,48 @@
+# BioFlow Algorithms Module Index
+# Contains core bioinformatics algorithms with contracts
+
+# Export all algorithm functions
+export validation::{
+  is_valid_dna,
+  is_valid_rna,
+  is_valid_protein,
+  validate_fastq_quality,
+  ValidationResult
+}
+
+export stats::{
+  calculate_gc_content,
+  calculate_at_content,
+  calculate_base_frequencies,
+  sequence_complexity,
+  dinucleotide_frequencies,
+  BaseFrequencies,
+  DinucleotideFreqs
+}
+
+export kmer::{
+  KMerCounts,
+  KMer,
+  count_kmers,
+  most_frequent_kmers,
+  kmer_spectrum,
+  find_unique_kmers,
+  kmer_distance
+}
+
+export quality_filter::{
+  filter_by_quality,
+  filter_by_length,
+  filter_by_gc,
+  filter_by_ambiguous,
+  FilterResult,
+  FilterConfig
+}
+
+export alignment::{
+  smith_waterman,
+  needleman_wunsch,
+  simple_align,
+  ScoringMatrix,
+  AlignmentConfig
+}

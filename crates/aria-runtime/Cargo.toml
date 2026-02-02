@@ -1,0 +1,32 @@
+[package]
+name = "aria-runtime"
+description = "Concurrency runtime for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "ariaruntime"
+crate-type = ["staticlib", "rlib"]
+
+[features]
+default = ["std"]
+std = []
+# Full multi-threaded runtime with work-stealing
+full = ["std"]
+
+[dependencies]
+thiserror = { workspace = true }
+
+# Concurrency primitives
+parking_lot = "0.12"
+crossbeam-deque = "0.8"
+crossbeam-utils = "0.8"
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "concurrency"
+harness = false

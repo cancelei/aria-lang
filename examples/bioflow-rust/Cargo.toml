@@ -1,0 +1,45 @@
+[package]
+name = "bioflow-rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Aria Language Team"]
+description = "A production-quality bioinformatics library for sequence analysis"
+license = "MIT"
+repository = "https://github.com/aria-lang/aria"
+keywords = ["bioinformatics", "sequence", "alignment", "kmer", "genomics"]
+categories = ["science", "algorithms"]
+
+[lib]
+name = "bioflow_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bioflow"
+path = "src/main.rs"
+
+[[example]]
+name = "demo"
+path = "examples/demo.rs"
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[dependencies]
+thiserror = "1.0"
+rayon = "1.8"
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.bench]
+lto = true
+codegen-units = 1
+
+[workspace]

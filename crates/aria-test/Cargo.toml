@@ -1,0 +1,13 @@
+[package]
+name = "aria-test"
+description = "Testing framework for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

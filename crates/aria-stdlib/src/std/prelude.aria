@@ -1,0 +1,28 @@
+# Aria Standard Library - Prelude
+# Automatically imported types and functions
+
+# Core type aliases
+type Int = i64
+type Float = f64
+type Bool = bool
+type String = string
+type Char = char
+
+# Common traits (to be automatically imported when trait system is ready)
+# trait Display
+# trait Debug
+# trait Clone
+# trait PartialEq
+# trait Eq
+# trait PartialOrd
+# trait Ord
+
+# Re-export commonly used types
+export Option, Some, None
+export Result, Ok, Err
+export List, Map, Set
+
+# Re-export common functions
+export print, println, input
+export panic, assert, unreachable
+export todo, unimplemented

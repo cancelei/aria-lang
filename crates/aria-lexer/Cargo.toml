@@ -1,0 +1,15 @@
+[package]
+name = "aria-lexer"
+description = "Lexical analyzer for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+logos = { workspace = true }
+smol_str = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+insta = { workspace = true }

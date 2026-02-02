@@ -1,0 +1,433 @@
+# BioFlow - Sequence Tests
+# Comprehensive tests for sequence operations
+
+import core::sequence::{Sequence, SequenceError, SequenceType}
+
+# Test module for sequence functionality
+fn main() -> Int
+  println("Running Sequence Tests")
+  println("======================\n")
+
+  let mut passed = 0
+  let mut failed = 0
+
+  # Run all tests
+  if test_sequence_creation()
+    passed = passed + 1
+    println("[PASS] test_sequence_creation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_sequence_creation")
+  end
+
+  if test_sequence_validation()
+    passed = passed + 1
+    println("[PASS] test_sequence_validation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_sequence_validation")
+  end
+
+  if test_gc_content()
+    passed = passed + 1
+    println("[PASS] test_gc_content")
+  else
+    failed = failed + 1
+    println("[FAIL] test_gc_content")
+  end
+
+  if test_complement()
+    passed = passed + 1
+    println("[PASS] test_complement")
+  else
+    failed = failed + 1
+    println("[FAIL] test_complement")
+  end
+
+  if test_reverse_complement()
+    passed = passed + 1
+    println("[PASS] test_reverse_complement")
+  else
+    failed = failed + 1
+    println("[FAIL] test_reverse_complement")
+  end
+
+  if test_transcription()
+    passed = passed + 1
+    println("[PASS] test_transcription")
+  else
+    failed = failed + 1
+    println("[FAIL] test_transcription")
+  end
+
+  if test_subsequence()
+    passed = passed + 1
+    println("[PASS] test_subsequence")
+  else
+    failed = failed + 1
+    println("[FAIL] test_subsequence")
+  end
+
+  if test_motif_finding()
+    passed = passed + 1
+    println("[PASS] test_motif_finding")
+  else
+    failed = failed + 1
+    println("[FAIL] test_motif_finding")
+  end
+
+  if test_base_counts()
+    passed = passed + 1
+    println("[PASS] test_base_counts")
+  else
+    failed = failed + 1
+    println("[FAIL] test_base_counts")
+  end
+
+  if test_sequence_concatenation()
+    passed = passed + 1
+    println("[PASS] test_sequence_concatenation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_sequence_concatenation")
+  end
+
+  println("\n======================")
+  println("Passed: " + passed.to_string())
+  println("Failed: " + failed.to_string())
+
+  if failed > 0 then 1 else 0 end
+end
+
+# Test: Sequence Creation
+fn test_sequence_creation() -> Bool
+  # Valid DNA sequence
+  let result1 = Sequence::new("ATGC")
+  if !result1.is_ok()
+    return false
+  end
+
+  let seq1 = result1.unwrap()
+  if seq1.len() != 4
+    return false
+  end
+
+  # Sequence with ID
+  let result2 = Sequence::with_id("ATGCATGC", "seq001")
+  if !result2.is_ok()
+    return false
+  end
+
+  let seq2 = result2.unwrap()
+  if seq2.id.is_none()
+    return false
+  end
+
+  # Lowercase should be normalized
+  let result3 = Sequence::new("atgc")
+  if !result3.is_ok()
+    return false
+  end
+
+  let seq3 = result3.unwrap()
+  if seq3.bases != "ATGC"
+    return false
+  end
+
+  # Sequence with N (ambiguous)
+  let result4 = Sequence::new("ATGNCATGN")
+  if !result4.is_ok()
+    return false
+  end
+
+  true
+end
+
+# Test: Sequence Validation
+fn test_sequence_validation() -> Bool
+  # Valid DNA sequences
+  if !Sequence::new("ATGC").is_ok()
+    return false
+  end
+
+  if !Sequence::new("AAAAAAAAAA").is_ok()
+    return false
+  end
+
+  if !Sequence::new("GCGCGCGCGC").is_ok()
+    return false
+  end
+
+  # Invalid characters should fail
+  let invalid1 = Sequence::new("ATGX")
+  if invalid1.is_ok()
+    return false
+  end
+
+  let invalid2 = Sequence::new("ATG1")
+  if invalid2.is_ok()
+    return false
+  end
+
+  let invalid3 = Sequence::new("ATG GC")  # Space
+  if invalid3.is_ok()
+    return false
+  end
+
+  true
+end
+
+# Test: GC Content Calculation
+fn test_gc_content() -> Bool
+  # 50% GC
+  let seq1 = Sequence::new("ATGC").unwrap()
+  let gc1 = seq1.gc_content()
+  if !approx_eq(gc1, 0.5, 0.001)
+    return false
+  end
+
+  # 100% GC
+  let seq2 = Sequence::new("GCGCGCGC").unwrap()
+  let gc2 = seq2.gc_content()
+  if !approx_eq(gc2, 1.0, 0.001)
+    return false
+  end
+
+  # 0% GC
+  let seq3 = Sequence::new("ATATAT").unwrap()
+  let gc3 = seq3.gc_content()
+  if !approx_eq(gc3, 0.0, 0.001)
+    return false
+  end
+
+  # 25% GC
+  let seq4 = Sequence::new("ATTTTTTTG").unwrap()  # 1 G out of 9 = ~11%
+  let gc4 = seq4.gc_content()
+  if gc4 < 0.0 or gc4 > 1.0
+    return false
+  end
+
+  true
+end
+
+# Test: Complement
+fn test_complement() -> Bool
+  let seq = Sequence::new("ATGC").unwrap()
+  let comp = seq.complement()
+
+  # A -> T, T -> A, G -> C, C -> G
+  if comp.bases != "TACG"
+    return false
+  end
+
+  # Complement should preserve length
+  if comp.len() != seq.len()
+    return false
+  end
+
+  # Double complement should return original
+  let double_comp = comp.complement()
+  if double_comp.bases != seq.bases
+    return false
+  end
+
+  # Test with N
+  let seq_n = Sequence::new("ATNGC").unwrap()
+  let comp_n = seq_n.complement()
+  if comp_n.bases != "TANCG"
+    return false
+  end
+
+  true
+end
+
+# Test: Reverse Complement
+fn test_reverse_complement() -> Bool
+  let seq = Sequence::new("ATGC").unwrap()
+  let rc = seq.reverse_complement()
+
+  # ATGC -> complement TACG -> reverse GCAT
+  if rc.bases != "GCAT"
+    return false
+  end
+
+  # RC should preserve length
+  if rc.len() != seq.len()
+    return false
+  end
+
+  # Double RC should return original
+  let double_rc = rc.reverse_complement()
+  if double_rc.bases != seq.bases
+    return false
+  end
+
+  # Test longer sequence
+  let seq2 = Sequence::new("AAAAGGGGCCCCTTTT").unwrap()
+  let rc2 = seq2.reverse_complement()
+  # Original: AAAAGGGGCCCCTTTT
+  # Complement: TTTTCCCCGGGGAAAA
+  # Reverse: AAAAGGGGGCCCTTTTT... wait
+  # Actually: AAAAGGGGCCCCTTTT -> comp -> TTTTCCCCGGGGAAAA -> rev -> AAAAGGGGGCCCCTTTT
+  # Hmm, let me recalculate:
+  # AAAAGGGGCCCCTTTT
+  # Complement (A<->T, G<->C): TTTTCCCCGGGGAAAA
+  # Reverse: AAAAGGGGGCCCCTTTT...
+  # The reverse of TTTTCCCCGGGGAAAA is AAAAGGGGGCCCCTTTT
+  # Wait: reverse of "TTTTCCCCGGGGAAAA" should be read backwards: "AAAAGGGGGCCCCTTTT"
+  # Let me verify character by character:
+  # T T T T C C C C G G G G A A A A
+  # Reversed: A A A A G G G G C C C C T T T T
+  if rc2.bases != "AAAAGGGGGCCCCTTTT"
+    return false
+  end
+
+  true
+end
+
+# Test: Transcription
+fn test_transcription() -> Bool
+  let dna = Sequence::new("ATGC").unwrap()
+  let rna = dna.transcribe()
+
+  # T -> U
+  if rna.bases != "AUGC"
+    return false
+  end
+
+  # Should be RNA type
+  if rna.seq_type != SequenceType::RNA
+    return false
+  end
+
+  # Length preserved
+  if rna.len() != dna.len()
+    return false
+  end
+
+  # All T's become U's
+  let dna2 = Sequence::new("TTTTTTTT").unwrap()
+  let rna2 = dna2.transcribe()
+  if rna2.bases != "UUUUUUUU"
+    return false
+  end
+
+  true
+end
+
+# Test: Subsequence
+fn test_subsequence() -> Bool
+  let seq = Sequence::new("ATGCATGCATGC").unwrap()
+
+  # Valid subsequence
+  let sub1 = seq.subsequence(0, 4)
+  if !sub1.is_ok()
+    return false
+  end
+  if sub1.unwrap().bases != "ATGC"
+    return false
+  end
+
+  # Middle subsequence
+  let sub2 = seq.subsequence(4, 8)
+  if !sub2.is_ok()
+    return false
+  end
+  if sub2.unwrap().bases != "ATGC"
+    return false
+  end
+
+  # Single base
+  let sub3 = seq.subsequence(0, 1)
+  if !sub3.is_ok()
+    return false
+  end
+  if sub3.unwrap().bases != "A"
+    return false
+  end
+
+  true
+end
+
+# Test: Motif Finding
+fn test_motif_finding() -> Bool
+  let seq = Sequence::new("ATGATGATGATG").unwrap()
+
+  # Contains ATG
+  if !seq.contains_motif("ATG")
+    return false
+  end
+
+  # Find all positions
+  let positions = seq.find_motif_positions("ATG")
+  if positions.len() != 4
+    return false
+  end
+  if positions[0] != 0 or positions[1] != 3 or positions[2] != 6 or positions[3] != 9
+    return false
+  end
+
+  # Does not contain XYZ
+  if seq.contains_motif("XYZ")
+    return false
+  end
+
+  # Case insensitive
+  if !seq.contains_motif("atg")
+    return false
+  end
+
+  true
+end
+
+# Test: Base Counts
+fn test_base_counts() -> Bool
+  let seq = Sequence::new("AAACCCGGGTTTN").unwrap()
+  let (a, c, g, t, n) = seq.base_counts()
+
+  if a != 3
+    return false
+  end
+  if c != 3
+    return false
+  end
+  if g != 3
+    return false
+  end
+  if t != 3
+    return false
+  end
+  if n != 1
+    return false
+  end
+
+  # Sum should equal length
+  if a + c + g + t + n != seq.len()
+    return false
+  end
+
+  true
+end
+
+# Test: Sequence Concatenation
+fn test_sequence_concatenation() -> Bool
+  let seq1 = Sequence::new("ATGC").unwrap()
+  let seq2 = Sequence::new("GCTA").unwrap()
+
+  let concat = seq1.concat(seq2)
+
+  if concat.bases != "ATGCGCTA"
+    return false
+  end
+
+  if concat.len() != seq1.len() + seq2.len()
+    return false
+  end
+
+  true
+end
+
+# Helper: Approximate floating point equality
+fn approx_eq(a: Float, b: Float, epsilon: Float) -> Bool
+  (a - b).abs() < epsilon
+end

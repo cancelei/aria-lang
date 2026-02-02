@@ -1,0 +1,17 @@
+# Math utilities module
+
+pub fn add(x: Int, y: Int) -> Int
+  x + y
+end
+
+pub fn multiply(x: Int, y: Int) -> Int
+  x * y
+end
+
+fn internal_helper(x: Int) -> Int
+  x * 2
+end
+
+pub fn square(x: Int) -> Int
+  multiply(x, x)
+end

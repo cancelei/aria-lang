@@ -1,0 +1,1094 @@
+# Large benchmark program (~1000+ lines)
+# Comprehensive test of Aria language features
+
+# ============================================================================
+# SECTION 1: Basic Arithmetic Operations
+# ============================================================================
+
+fn add(a: Int, b: Int) -> Int
+  a + b
+end
+
+fn sub(a: Int, b: Int) -> Int
+  a - b
+end
+
+fn mul(a: Int, b: Int) -> Int
+  a * b
+end
+
+fn div(a: Int, b: Int) -> Int
+  a / b
+end
+
+fn modulo(a: Int, b: Int) -> Int
+  a % b
+end
+
+fn neg(a: Int) -> Int
+  0 - a
+end
+
+fn inc(a: Int) -> Int
+  a + 1
+end
+
+fn dec(a: Int) -> Int
+  a - 1
+end
+
+fn double(x: Int) -> Int
+  x * 2
+end
+
+fn triple(x: Int) -> Int
+  x * 3
+end
+
+fn quadruple(x: Int) -> Int
+  x * 4
+end
+
+fn halve(x: Int) -> Int
+  x / 2
+end
+
+fn square(x: Int) -> Int
+  x * x
+end
+
+fn cube(x: Int) -> Int
+  x * x * x
+end
+
+# ============================================================================
+# SECTION 2: Comparison and Boolean Operations
+# ============================================================================
+
+fn is_zero(n: Int) -> Bool
+  n == 0
+end
+
+fn is_positive(n: Int) -> Bool
+  n > 0
+end
+
+fn is_negative(n: Int) -> Bool
+  n < 0
+end
+
+fn is_even(n: Int) -> Bool
+  modulo(n, 2) == 0
+end
+
+fn is_odd(n: Int) -> Bool
+  modulo(n, 2) == 1
+end
+
+fn is_divisible_by(n: Int, d: Int) -> Bool
+  modulo(n, d) == 0
+end
+
+fn is_multiple_of_three(n: Int) -> Bool
+  is_divisible_by(n, 3)
+end
+
+fn is_multiple_of_five(n: Int) -> Bool
+  is_divisible_by(n, 5)
+end
+
+fn is_fizz(n: Int) -> Bool
+  is_multiple_of_three(n) and not is_multiple_of_five(n)
+end
+
+fn is_buzz(n: Int) -> Bool
+  is_multiple_of_five(n) and not is_multiple_of_three(n)
+end
+
+fn is_fizzbuzz(n: Int) -> Bool
+  is_multiple_of_three(n) and is_multiple_of_five(n)
+end
+
+# ============================================================================
+# SECTION 3: Mathematical Functions
+# ============================================================================
+
+fn abs(x: Int) -> Int
+  if x < 0
+    neg(x)
+  else
+    x
+  end
+end
+
+fn sign(x: Int) -> Int
+  if x > 0
+    1
+  elsif x < 0
+    neg(1)
+  else
+    0
+  end
+end
+
+fn min2(a: Int, b: Int) -> Int
+  if a < b
+    a
+  else
+    b
+  end
+end
+
+fn max2(a: Int, b: Int) -> Int
+  if a > b
+    a
+  else
+    b
+  end
+end
+
+fn min3(a: Int, b: Int, c: Int) -> Int
+  min2(min2(a, b), c)
+end
+
+fn max3(a: Int, b: Int, c: Int) -> Int
+  max2(max2(a, b), c)
+end
+
+fn clamp(value: Int, lower: Int, upper: Int) -> Int
+  min2(max2(value, lower), upper)
+end
+
+fn wrap(value: Int, lower: Int, upper: Int) -> Int
+  let range = upper - lower
+  let wrapped = modulo(value - lower, range)
+  if wrapped < 0
+    wrapped + range + lower
+  else
+    wrapped + lower
+  end
+end
+
+fn power(base: Int, exp: Int) -> Int
+  if exp == 0
+    1
+  elsif exp == 1
+    base
+  elsif is_even(exp)
+    let half = power(base, div(exp, 2))
+    mul(half, half)
+  else
+    mul(base, power(base, dec(exp)))
+  end
+end
+
+fn power_mod(base: Int, exp: Int, m: Int) -> Int
+  if exp == 0
+    1
+  elsif is_even(exp)
+    let half = power_mod(base, div(exp, 2), m)
+    modulo(mul(half, half), m)
+  else
+    modulo(mul(base, power_mod(base, dec(exp), m)), m)
+  end
+end
+
+# ============================================================================
+# SECTION 4: Number Theory
+# ============================================================================
+
+fn gcd(a: Int, b: Int) -> Int
+  if b == 0
+    abs(a)
+  else
+    gcd(b, modulo(a, b))
+  end
+end
+
+fn lcm(a: Int, b: Int) -> Int
+  div(abs(mul(a, b)), gcd(a, b))
+end
+
+fn coprime(a: Int, b: Int) -> Bool
+  gcd(a, b) == 1
+end
+
+fn factorial(n: Int) -> Int
+  if n <= 1
+    1
+  else
+    mul(n, factorial(dec(n)))
+  end
+end
+
+fn factorial_tail(n: Int, acc: Int) -> Int
+  if n <= 1
+    acc
+  else
+    factorial_tail(dec(n), mul(acc, n))
+  end
+end
+
+fn permutations(n: Int, r: Int) -> Int
+  if r > n
+    0
+  else
+    div(factorial(n), factorial(sub(n, r)))
+  end
+end
+
+fn combinations(n: Int, r: Int) -> Int
+  if r > n
+    0
+  else
+    div(factorial(n), mul(factorial(r), factorial(sub(n, r))))
+  end
+end
+
+fn binomial(n: Int, k: Int) -> Int
+  if k == 0 or k == n
+    1
+  elsif k == 1 or k == dec(n)
+    n
+  else
+    add(binomial(dec(n), dec(k)), binomial(dec(n), k))
+  end
+end
+
+fn catalan(n: Int) -> Int
+  if n <= 1
+    1
+  else
+    div(mul(2, mul(sub(mul(2, n), 1), catalan(dec(n)))), inc(n))
+  end
+end
+
+# ============================================================================
+# SECTION 5: Fibonacci Variants
+# ============================================================================
+
+fn fibonacci(n: Int) -> Int
+  if n <= 1
+    n
+  else
+    add(fibonacci(dec(n)), fibonacci(sub(n, 2)))
+  end
+end
+
+fn fibonacci_tail(n: Int, a: Int, b: Int) -> Int
+  if n == 0
+    a
+  elsif n == 1
+    b
+  else
+    fibonacci_tail(dec(n), b, add(a, b))
+  end
+end
+
+fn lucas(n: Int) -> Int
+  if n == 0
+    2
+  elsif n == 1
+    1
+  else
+    add(lucas(dec(n)), lucas(sub(n, 2)))
+  end
+end
+
+fn tribonacci(n: Int) -> Int
+  if n == 0
+    0
+  elsif n == 1 or n == 2
+    1
+  else
+    add(add(tribonacci(dec(n)), tribonacci(sub(n, 2))), tribonacci(sub(n, 3)))
+  end
+end
+
+fn padovan(n: Int) -> Int
+  if n < 3
+    1
+  else
+    add(padovan(sub(n, 2)), padovan(sub(n, 3)))
+  end
+end
+
+fn pell(n: Int) -> Int
+  if n == 0
+    0
+  elsif n == 1
+    1
+  else
+    add(mul(2, pell(dec(n))), pell(sub(n, 2)))
+  end
+end
+
+# ============================================================================
+# SECTION 6: Prime Numbers
+# ============================================================================
+
+fn is_prime(n: Int) -> Bool
+  if n <= 1
+    false
+  elsif n <= 3
+    true
+  elsif is_even(n)
+    false
+  else
+    is_prime_helper(n, 3)
+  end
+end
+
+fn is_prime_helper(n: Int, i: Int) -> Bool
+  if mul(i, i) > n
+    true
+  elsif is_divisible_by(n, i)
+    false
+  else
+    is_prime_helper(n, add(i, 2))
+  end
+end
+
+fn next_prime(n: Int) -> Int
+  if is_prime(inc(n))
+    inc(n)
+  else
+    next_prime(inc(n))
+  end
+end
+
+fn prev_prime(n: Int) -> Int
+  if n <= 2
+    2
+  elsif is_prime(dec(n))
+    dec(n)
+  else
+    prev_prime(dec(n))
+  end
+end
+
+fn nth_prime(n: Int) -> Int
+  nth_prime_helper(n, 2)
+end
+
+fn nth_prime_helper(n: Int, candidate: Int) -> Int
+  if n == 1 and is_prime(candidate)
+    candidate
+  elsif is_prime(candidate)
+    nth_prime_helper(dec(n), inc(candidate))
+  else
+    nth_prime_helper(n, inc(candidate))
+  end
+end
+
+fn count_primes_up_to(n: Int) -> Int
+  count_primes_helper(n, 2, 0)
+end
+
+fn count_primes_helper(n: Int, current: Int, count: Int) -> Int
+  if current > n
+    count
+  elsif is_prime(current)
+    count_primes_helper(n, inc(current), inc(count))
+  else
+    count_primes_helper(n, inc(current), count)
+  end
+end
+
+fn sum_primes_up_to(n: Int) -> Int
+  sum_primes_helper(n, 2, 0)
+end
+
+fn sum_primes_helper(n: Int, current: Int, sum: Int) -> Int
+  if current > n
+    sum
+  elsif is_prime(current)
+    sum_primes_helper(n, inc(current), add(sum, current))
+  else
+    sum_primes_helper(n, inc(current), sum)
+  end
+end
+
+fn is_twin_prime(n: Int) -> Bool
+  is_prime(n) and (is_prime(add(n, 2)) or is_prime(sub(n, 2)))
+end
+
+fn is_mersenne_exponent(p: Int) -> Bool
+  is_prime(p) and is_prime(dec(power(2, p)))
+end
+
+# ============================================================================
+# SECTION 7: Digit Manipulation
+# ============================================================================
+
+fn count_digits(n: Int) -> Int
+  if n < 10
+    1
+  else
+    inc(count_digits(div(n, 10)))
+  end
+end
+
+fn sum_digits(n: Int) -> Int
+  if n == 0
+    0
+  else
+    add(modulo(n, 10), sum_digits(div(n, 10)))
+  end
+end
+
+fn product_digits(n: Int) -> Int
+  if n < 10
+    n
+  else
+    mul(modulo(n, 10), product_digits(div(n, 10)))
+  end
+end
+
+fn reverse_number(n: Int) -> Int
+  reverse_number_helper(n, 0)
+end
+
+fn reverse_number_helper(n: Int, acc: Int) -> Int
+  if n == 0
+    acc
+  else
+    reverse_number_helper(div(n, 10), add(mul(acc, 10), modulo(n, 10)))
+  end
+end
+
+fn is_palindrome(n: Int) -> Bool
+  n == reverse_number(n)
+end
+
+fn first_digit(n: Int) -> Int
+  if n < 10
+    n
+  else
+    first_digit(div(n, 10))
+  end
+end
+
+fn last_digit(n: Int) -> Int
+  modulo(n, 10)
+end
+
+fn digital_root(n: Int) -> Int
+  if n < 10
+    n
+  else
+    digital_root(sum_digits(n))
+  end
+end
+
+fn is_harshad(n: Int) -> Bool
+  is_divisible_by(n, sum_digits(n))
+end
+
+fn is_armstrong(n: Int) -> Int
+  let digits = count_digits(n)
+  n == armstrong_sum(n, digits)
+end
+
+fn armstrong_sum(n: Int, digits: Int) -> Int
+  if n == 0
+    0
+  else
+    add(power(modulo(n, 10), digits), armstrong_sum(div(n, 10), digits))
+  end
+end
+
+# ============================================================================
+# SECTION 8: Series and Summations
+# ============================================================================
+
+fn sum_to_n(n: Int) -> Int
+  div(mul(n, inc(n)), 2)
+end
+
+fn sum_squares_to_n(n: Int) -> Int
+  div(mul(mul(n, inc(n)), inc(mul(2, n))), 6)
+end
+
+fn sum_cubes_to_n(n: Int) -> Int
+  let s = sum_to_n(n)
+  mul(s, s)
+end
+
+fn sum_range(start: Int, stop: Int) -> Int
+  sum_range_helper(start, stop, 0)
+end
+
+fn sum_range_helper(start: Int, stop: Int, acc: Int) -> Int
+  if start > stop
+    acc
+  else
+    sum_range_helper(inc(start), stop, add(acc, start))
+  end
+end
+
+fn sum_evens_to_n(n: Int) -> Int
+  let count = div(n, 2)
+  mul(count, inc(count))
+end
+
+fn sum_odds_to_n(n: Int) -> Int
+  let count = div(inc(n), 2)
+  mul(count, count)
+end
+
+fn harmonic_numerator(n: Int) -> Int
+  if n == 1
+    1
+  else
+    add(harmonic_numerator(dec(n)), div(factorial(n), n))
+  end
+end
+
+# ============================================================================
+# SECTION 9: Collatz and Other Sequences
+# ============================================================================
+
+fn collatz_next(n: Int) -> Int
+  if is_even(n)
+    div(n, 2)
+  else
+    inc(mul(3, n))
+  end
+end
+
+fn collatz_length(n: Int) -> Int
+  if n == 1
+    0
+  else
+    inc(collatz_length(collatz_next(n)))
+  end
+end
+
+fn collatz_max(n: Int) -> Int
+  collatz_max_helper(n, n)
+end
+
+fn collatz_max_helper(n: Int, max_val: Int) -> Int
+  if n == 1
+    max_val
+  else
+    let next = collatz_next(n)
+    collatz_max_helper(next, max2(max_val, next))
+  end
+end
+
+fn longest_collatz_under(n: Int) -> Int
+  longest_collatz_helper(n, 1, 0, 1)
+end
+
+fn longest_collatz_helper(n: Int, current: Int, max_len: Int, max_start: Int) -> Int
+  if current > n
+    max_start
+  else
+    let len = collatz_length(current)
+    if len > max_len
+      longest_collatz_helper(n, inc(current), len, current)
+    else
+      longest_collatz_helper(n, inc(current), max_len, max_start)
+    end
+  end
+end
+
+# ============================================================================
+# SECTION 10: Ackermann and Other Fast-Growing Functions
+# ============================================================================
+
+fn ackermann(m: Int, n: Int) -> Int
+  if m == 0
+    inc(n)
+  elsif n == 0
+    ackermann(dec(m), 1)
+  else
+    ackermann(dec(m), ackermann(m, dec(n)))
+  end
+end
+
+fn hyperop(n: Int, a: Int, b: Int) -> Int
+  if n == 0
+    inc(b)
+  elsif n == 1
+    add(a, b)
+  elsif n == 2
+    mul(a, b)
+  elsif n == 3
+    power(a, b)
+  else
+    hyperop_helper(n, a, b)
+  end
+end
+
+fn hyperop_helper(n: Int, a: Int, b: Int) -> Int
+  if b == 0
+    1
+  else
+    hyperop(dec(n), a, hyperop(n, a, dec(b)))
+  end
+end
+
+fn sudan(n: Int, x: Int, y: Int) -> Int
+  if n == 0
+    add(x, y)
+  elsif y == 0
+    x
+  else
+    sudan(dec(n), sudan(n, x, dec(y)), add(sudan(n, x, dec(y)), y))
+  end
+end
+
+# ============================================================================
+# SECTION 11: Continued Fractions and Approximations
+# ============================================================================
+
+fn floor_sqrt(n: Int) -> Int
+  floor_sqrt_helper(n, n)
+end
+
+fn floor_sqrt_helper(n: Int, guess: Int) -> Int
+  let next_guess = div(add(guess, div(n, guess)), 2)
+  if next_guess >= guess
+    guess
+  else
+    floor_sqrt_helper(n, next_guess)
+  end
+end
+
+fn is_perfect_square(n: Int) -> Bool
+  let root = floor_sqrt(n)
+  mul(root, root) == n
+end
+
+fn integer_log2(n: Int) -> Int
+  if n < 2
+    0
+  else
+    inc(integer_log2(div(n, 2)))
+  end
+end
+
+fn integer_log10(n: Int) -> Int
+  if n < 10
+    0
+  else
+    inc(integer_log10(div(n, 10)))
+  end
+end
+
+# ============================================================================
+# SECTION 12: Bit Manipulation (Simulated)
+# ============================================================================
+
+fn bit_and(a: Int, b: Int) -> Int
+  bit_and_helper(a, b, 0, 1)
+end
+
+fn bit_and_helper(a: Int, b: Int, result: Int, place: Int) -> Int
+  if a == 0 or b == 0
+    result
+  else
+    let a_bit = modulo(a, 2)
+    let b_bit = modulo(b, 2)
+    let new_result = if a_bit == 1 and b_bit == 1
+      add(result, place)
+    else
+      result
+    end
+    bit_and_helper(div(a, 2), div(b, 2), new_result, mul(place, 2))
+  end
+end
+
+fn bit_or(a: Int, b: Int) -> Int
+  bit_or_helper(a, b, 0, 1)
+end
+
+fn bit_or_helper(a: Int, b: Int, result: Int, place: Int) -> Int
+  if a == 0 and b == 0
+    result
+  else
+    let a_bit = modulo(a, 2)
+    let b_bit = modulo(b, 2)
+    let new_result = if a_bit == 1 or b_bit == 1
+      add(result, place)
+    else
+      result
+    end
+    bit_or_helper(div(a, 2), div(b, 2), new_result, mul(place, 2))
+  end
+end
+
+fn bit_xor(a: Int, b: Int) -> Int
+  bit_xor_helper(a, b, 0, 1)
+end
+
+fn bit_xor_helper(a: Int, b: Int, result: Int, place: Int) -> Int
+  if a == 0 and b == 0
+    result
+  else
+    let a_bit = modulo(a, 2)
+    let b_bit = modulo(b, 2)
+    let new_result = if a_bit != b_bit
+      add(result, place)
+    else
+      result
+    end
+    bit_xor_helper(div(a, 2), div(b, 2), new_result, mul(place, 2))
+  end
+end
+
+fn count_bits(n: Int) -> Int
+  if n == 0
+    0
+  else
+    add(modulo(n, 2), count_bits(div(n, 2)))
+  end
+end
+
+fn is_power_of_two(n: Int) -> Bool
+  n > 0 and count_bits(n) == 1
+end
+
+fn next_power_of_two(n: Int) -> Int
+  power(2, inc(integer_log2(n)))
+end
+
+# ============================================================================
+# SECTION 13: Special Number Classifications
+# ============================================================================
+
+fn is_perfect_number(n: Int) -> Bool
+  n > 1 and sum_proper_divisors(n) == n
+end
+
+fn sum_proper_divisors(n: Int) -> Int
+  sum_divisors_helper(n, dec(n), 0)
+end
+
+fn sum_divisors_helper(n: Int, d: Int, sum: Int) -> Int
+  if d == 0
+    sum
+  elsif is_divisible_by(n, d)
+    sum_divisors_helper(n, dec(d), add(sum, d))
+  else
+    sum_divisors_helper(n, dec(d), sum)
+  end
+end
+
+fn is_abundant(n: Int) -> Bool
+  sum_proper_divisors(n) > n
+end
+
+fn is_deficient(n: Int) -> Bool
+  sum_proper_divisors(n) < n
+end
+
+fn count_divisors(n: Int) -> Int
+  count_divisors_helper(n, n, 0)
+end
+
+fn count_divisors_helper(n: Int, d: Int, count: Int) -> Int
+  if d == 0
+    count
+  elsif is_divisible_by(n, d)
+    count_divisors_helper(n, dec(d), inc(count))
+  else
+    count_divisors_helper(n, dec(d), count)
+  end
+end
+
+fn is_highly_composite(n: Int) -> Bool
+  is_highly_composite_helper(n, dec(n), count_divisors(n))
+end
+
+fn is_highly_composite_helper(n: Int, m: Int, n_divisors: Int) -> Bool
+  if m <= 0
+    true
+  elsif count_divisors(m) >= n_divisors
+    false
+  else
+    is_highly_composite_helper(n, dec(m), n_divisors)
+  end
+end
+
+# ============================================================================
+# SECTION 14: Modular Arithmetic
+# ============================================================================
+
+fn mod_add(a: Int, b: Int, m: Int) -> Int
+  modulo(add(modulo(a, m), modulo(b, m)), m)
+end
+
+fn mod_sub(a: Int, b: Int, m: Int) -> Int
+  modulo(add(sub(modulo(a, m), modulo(b, m)), m), m)
+end
+
+fn mod_mul(a: Int, b: Int, m: Int) -> Int
+  modulo(mul(modulo(a, m), modulo(b, m)), m)
+end
+
+fn mod_pow(base: Int, exp: Int, m: Int) -> Int
+  if exp == 0
+    1
+  elsif is_even(exp)
+    let half = mod_pow(base, div(exp, 2), m)
+    modulo(mul(half, half), m)
+  else
+    modulo(mul(base, mod_pow(base, dec(exp), m)), m)
+  end
+end
+
+fn extended_gcd(a: Int, b: Int) -> Int
+  if b == 0
+    a
+  else
+    extended_gcd(b, modulo(a, b))
+  end
+end
+
+fn mod_inverse(a: Int, m: Int) -> Int
+  mod_inverse_helper(a, m, m, 0, 1)
+end
+
+fn mod_inverse_helper(a: Int, b: Int, m: Int, x0: Int, x1: Int) -> Int
+  if a <= 1
+    modulo(add(x1, m), m)
+  else
+    let q = div(a, b)
+    let new_x = sub(x0, mul(q, x1))
+    mod_inverse_helper(b, modulo(a, b), m, x1, new_x)
+  end
+end
+
+# ============================================================================
+# SECTION 15: Combinatorial Functions
+# ============================================================================
+
+fn stirling_first(n: Int, k: Int) -> Int
+  if n == 0 and k == 0
+    1
+  elsif n == 0 or k == 0
+    0
+  else
+    add(mul(dec(n), stirling_first(dec(n), k)), stirling_first(dec(n), dec(k)))
+  end
+end
+
+fn stirling_second(n: Int, k: Int) -> Int
+  if n == 0 and k == 0
+    1
+  elsif n == 0 or k == 0
+    0
+  else
+    add(mul(k, stirling_second(dec(n), k)), stirling_second(dec(n), dec(k)))
+  end
+end
+
+fn bell_number(n: Int) -> Int
+  if n == 0
+    1
+  else
+    bell_sum(n, 0, 0)
+  end
+end
+
+fn bell_sum(n: Int, k: Int, sum: Int) -> Int
+  if k > n
+    sum
+  else
+    bell_sum(n, inc(k), add(sum, stirling_second(n, k)))
+  end
+end
+
+fn derangements(n: Int) -> Int
+  if n == 0
+    1
+  elsif n == 1
+    0
+  else
+    mul(dec(n), add(derangements(dec(n)), derangements(sub(n, 2))))
+  end
+end
+
+fn eulerian(n: Int, k: Int) -> Int
+  if k == 0
+    1
+  elsif k >= n
+    0
+  else
+    add(mul(sub(n, k), eulerian(dec(n), dec(k))), mul(inc(k), eulerian(dec(n), k)))
+  end
+end
+
+# ============================================================================
+# SECTION 16: Utility Functions for Complex Calculations
+# ============================================================================
+
+fn safe_div(a: Int, b: Int, default: Int) -> Int
+  if b == 0
+    default
+  else
+    div(a, b)
+  end
+end
+
+fn safe_mod(a: Int, b: Int, default: Int) -> Int
+  if b == 0
+    default
+  else
+    modulo(a, b)
+  end
+end
+
+fn clamp_positive(n: Int) -> Int
+  max2(n, 0)
+end
+
+fn wrap_to_range(n: Int, max_val: Int) -> Int
+  modulo(modulo(n, max_val) + max_val, max_val)
+end
+
+fn linear_interpolate(a: Int, b: Int, t: Int, scale: Int) -> Int
+  add(a, div(mul(sub(b, a), t), scale))
+end
+
+fn midpoint(a: Int, b: Int) -> Int
+  div(add(a, b), 2)
+end
+
+fn distance(a: Int, b: Int) -> Int
+  abs(sub(a, b))
+end
+
+fn manhattan_distance(x1: Int, y1: Int, x2: Int, y2: Int) -> Int
+  add(abs(sub(x1, x2)), abs(sub(y1, y2)))
+end
+
+# ============================================================================
+# SECTION 17: Sequence Generation Helpers
+# ============================================================================
+
+fn triangular_number(n: Int) -> Int
+  div(mul(n, inc(n)), 2)
+end
+
+fn is_triangular(n: Int) -> Bool
+  is_triangular_helper(n, 1)
+end
+
+fn is_triangular_helper(n: Int, t: Int) -> Bool
+  let triangular = triangular_number(t)
+  if triangular == n
+    true
+  elsif triangular > n
+    false
+  else
+    is_triangular_helper(n, inc(t))
+  end
+end
+
+fn pentagonal_number(n: Int) -> Int
+  div(mul(n, sub(mul(3, n), 1)), 2)
+end
+
+fn hexagonal_number(n: Int) -> Int
+  mul(n, sub(mul(2, n), 1))
+end
+
+fn heptagonal_number(n: Int) -> Int
+  div(mul(n, sub(mul(5, n), 3)), 2)
+end
+
+fn octagonal_number(n: Int) -> Int
+  mul(n, sub(mul(3, n), 2))
+end
+
+# ============================================================================
+# SECTION 18: Main Entry Point with Comprehensive Tests
+# ============================================================================
+
+fn run_arithmetic_tests() -> Int
+  let a = 42
+  let b = 17
+  let sum = add(a, b)
+  let diff = sub(a, b)
+  let prod = mul(a, b)
+  let quot = div(a, b)
+  let rem = modulo(a, b)
+  add(add(add(add(sum, diff), prod), quot), rem)
+end
+
+fn run_recursive_tests() -> Int
+  let fact5 = factorial(5)
+  let fib10 = fibonacci_tail(10, 0, 1)
+  let g = gcd(48, 18)
+  let l = lcm(12, 18)
+  add(add(add(fact5, fib10), g), l)
+end
+
+fn run_prime_tests() -> Int
+  let prime_count = count_primes_up_to(50)
+  let prime_sum = sum_primes_up_to(30)
+  let nth = nth_prime(10)
+  add(add(prime_count, prime_sum), nth)
+end
+
+fn run_digit_tests() -> Int
+  let num = 12345
+  let digits = count_digits(num)
+  let sum = sum_digits(num)
+  let rev = reverse_number(num)
+  let root = digital_root(num)
+  add(add(add(digits, sum), div(rev, 1000)), root)
+end
+
+fn run_sequence_tests() -> Int
+  let tri10 = triangular_number(10)
+  let pent5 = pentagonal_number(5)
+  let hex4 = hexagonal_number(4)
+  let cat5 = catalan(5)
+  add(add(add(tri10, pent5), hex4), cat5)
+end
+
+fn run_modular_tests() -> Int
+  let m = 97
+  let a = 42
+  let b = 58
+  let sum = mod_add(a, b, m)
+  let prod = mod_mul(a, b, m)
+  let pow = mod_pow(a, 5, m)
+  add(add(sum, prod), pow)
+end
+
+fn run_bit_tests() -> Int
+  let a = 42
+  let b = 27
+  let and_result = bit_and(a, b)
+  let or_result = bit_or(a, b)
+  let xor_result = bit_xor(a, b)
+  let bits_a = count_bits(a)
+  add(add(add(and_result, or_result), xor_result), bits_a)
+end
+
+fn run_collatz_tests() -> Int
+  let len27 = collatz_length(27)
+  let max27 = collatz_max(27)
+  add(len27, div(max27, 100))
+end
+
+fn main()
+  let t1 = run_arithmetic_tests()
+  let t2 = run_recursive_tests()
+  let t3 = run_prime_tests()
+  let t4 = run_digit_tests()
+  let t5 = run_sequence_tests()
+  let t6 = run_modular_tests()
+  let t7 = run_bit_tests()
+  let t8 = run_collatz_tests()
+
+  let total = add(add(add(add(add(add(add(t1, t2), t3), t4), t5), t6), t7), t8)
+  print(total)
+end

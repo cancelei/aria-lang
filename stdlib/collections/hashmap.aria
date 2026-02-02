@@ -1,0 +1,314 @@
+# Aria Standard Library - HashMap
+# Pure Aria implementation of hash map data structure
+
+# Simple hash map implementation using open addressing
+# This is a basic implementation for demonstration purposes
+
+struct HashMap<K, V>
+  buckets: [Option<(K, V)>]
+  size: Int
+  capacity: Int
+end
+
+impl HashMap<K, V>
+  # Create a new empty HashMap
+  fn new() -> HashMap<K, V>
+    let initial_capacity = 16
+    let mut buckets: [Option<(K, V)>] = []
+    let mut i = 0
+
+    while i < initial_capacity
+      buckets.push(None)
+      i = i + 1
+    end
+
+    HashMap {
+      buckets: buckets,
+      size: 0,
+      capacity: initial_capacity
+    }
+  end
+
+  # Create a HashMap with specific capacity
+  fn with_capacity(capacity: Int) -> HashMap<K, V>
+    let mut buckets: [Option<(K, V)>] = []
+    let mut i = 0
+
+    while i < capacity
+      buckets.push(None)
+      i = i + 1
+    end
+
+    HashMap {
+      buckets: buckets,
+      size: 0,
+      capacity: capacity
+    }
+  end
+
+  # Insert a key-value pair
+  fn insert(mut self, key: K, value: V)
+    # Check if we need to resize
+    if self.size >= (self.capacity * 3) / 4
+      self.resize()
+    end
+
+    let hash = self.hash_key(key)
+    let mut index = hash % self.capacity
+    let mut probe_count = 0
+
+    # Linear probing to find empty slot
+    while probe_count < self.capacity
+      match self.buckets[index]
+        None ->
+          # Found empty slot
+          self.buckets[index] = Some((key, value))
+          self.size = self.size + 1
+          return
+        Some((k, v)) ->
+          # Check if key already exists
+          if k == key
+            # Update existing value
+            self.buckets[index] = Some((key, value))
+            return
+          end
+          # Continue probing
+          index = (index + 1) % self.capacity
+          probe_count = probe_count + 1
+      end
+    end
+
+    # Should not reach here if resize works correctly
+    panic("HashMap is full")
+  end
+
+  # Get value for a key
+  fn get(self, key: K) -> Option<V>
+    let hash = self.hash_key(key)
+    let mut index = hash % self.capacity
+    let mut probe_count = 0
+
+    while probe_count < self.capacity
+      match self.buckets[index]
+        None ->
+          # Key not found
+          return None
+        Some((k, v)) ->
+          if k == key
+            return Some(v)
+          end
+          # Continue probing
+          index = (index + 1) % self.capacity
+          probe_count = probe_count + 1
+      end
+    end
+
+    None
+  end
+
+  # Check if map contains a key
+  fn contains_key(self, key: K) -> Bool
+    match self.get(key)
+      Some(_) -> true
+      None -> false
+    end
+  end
+
+  # Remove a key-value pair
+  fn remove(mut self, key: K) -> Option<V>
+    let hash = self.hash_key(key)
+    let mut index = hash % self.capacity
+    let mut probe_count = 0
+
+    while probe_count < self.capacity
+      match self.buckets[index]
+        None ->
+          return None
+        Some((k, v)) ->
+          if k == key
+            # Found the key, remove it
+            let value = v
+            self.buckets[index] = None
+            self.size = self.size - 1
+            # TODO: Rehash subsequent entries in the probe sequence
+            return Some(value)
+          end
+          index = (index + 1) % self.capacity
+          probe_count = probe_count + 1
+      end
+    end
+
+    None
+  end
+
+  # Get the number of key-value pairs
+  fn len(self) -> Int
+    self.size
+  end
+
+  # Check if map is empty
+  fn is_empty(self) -> Bool
+    self.size == 0
+  end
+
+  # Clear all entries
+  fn clear(mut self)
+    let mut i = 0
+    while i < self.capacity
+      self.buckets[i] = None
+      i = i + 1
+    end
+    self.size = 0
+  end
+
+  # Get all keys
+  fn keys(self) -> [K]
+    let mut result: [K] = []
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((k, _)) -> result.push(k)
+        None -> {}
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Get all values
+  fn values(self) -> [V]
+    let mut result: [V] = []
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((_, v)) -> result.push(v)
+        None -> {}
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Get all key-value pairs
+  fn entries(self) -> [(K, V)]
+    let mut result: [(K, V)] = []
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((k, v)) -> result.push((k, v))
+        None -> {}
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Iterate over each entry with a function
+  fn for_each(self, f: Fn(K, V))
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((k, v)) -> f(k, v)
+        None -> {}
+      end
+      i = i + 1
+    end
+  end
+
+  # Map values to new values
+  fn map_values<U>(self, f: Fn(V) -> U) -> HashMap<K, U>
+    let mut result = HashMap::with_capacity(self.capacity)
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((k, v)) -> result.insert(k, f(v))
+        None -> {}
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Filter entries based on predicate
+  fn filter(self, predicate: Fn(K, V) -> Bool) -> HashMap<K, V>
+    let mut result = HashMap::new()
+    let mut i = 0
+
+    while i < self.capacity
+      match self.buckets[i]
+        Some((k, v)) ->
+          if predicate(k, v)
+            result.insert(k, v)
+          end
+        None -> {}
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Internal: Hash a key to an integer
+  fn hash_key(self, key: K) -> Int
+    # Simple hash function - in real implementation would use proper hashing
+    # For now, we'll use a builtin
+    __builtin_hash(key)
+  end
+
+  # Internal: Resize the hash map when it gets too full
+  fn resize(mut self)
+    let new_capacity = self.capacity * 2
+    let old_buckets = self.buckets
+    let mut new_buckets: [Option<(K, V)>] = []
+    let mut i = 0
+
+    # Initialize new buckets
+    while i < new_capacity
+      new_buckets.push(None)
+      i = i + 1
+    end
+
+    # Update capacity
+    self.buckets = new_buckets
+    self.capacity = new_capacity
+    self.size = 0
+
+    # Rehash all existing entries
+    i = 0
+    while i < old_buckets.len()
+      match old_buckets[i]
+        Some((k, v)) -> self.insert(k, v)
+        None -> {}
+      end
+      i = i + 1
+    end
+  end
+end
+
+# Helper function to create an empty HashMap
+fn hashmap<K, V>() -> HashMap<K, V>
+  HashMap::new()
+end
+
+# Helper function to create a HashMap from key-value pairs
+fn hashmap_from<K, V>(pairs: [(K, V)]) -> HashMap<K, V>
+  let mut map = HashMap::new()
+  let mut i = 0
+
+  while i < pairs.len()
+    let (k, v) = pairs[i]
+    map.insert(k, v)
+    i = i + 1
+  end
+
+  map
+end

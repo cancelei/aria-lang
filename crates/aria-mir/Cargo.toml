@@ -1,0 +1,23 @@
+[package]
+name = "aria-mir"
+version = "0.1.0"
+edition = "2021"
+description = "Mid-level Intermediate Representation for the Aria programming language"
+authors = ["Aria Team"]
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+aria-lexer = { path = "../aria-lexer" }
+aria-types = { path = "../aria-types" }
+
+# Data structures
+smol_str = "0.2"
+rustc-hash = "1.1"
+indexmap = "2.0"
+
+# Error handling
+thiserror = "1.0"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+insta = "1.34"

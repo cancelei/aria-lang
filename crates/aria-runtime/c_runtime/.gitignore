@@ -1,0 +1,16 @@
+# Build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# Executables
+test_example
+*.exe
+
+# Temporary files
+.*.o
+*.tmp

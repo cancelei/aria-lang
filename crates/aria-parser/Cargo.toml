@@ -1,0 +1,17 @@
+[package]
+name = "aria-parser"
+description = "Parser for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-lexer = { path = "../aria-lexer" }
+aria-ast = { path = "../aria-ast" }
+thiserror = { workspace = true }
+miette = { workspace = true }
+ariadne = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+insta = { workspace = true }

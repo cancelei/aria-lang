@@ -1,0 +1,207 @@
+# Aria Standard Library - Random Module
+# Random number generation
+
+# Random number generator state
+struct Rng
+  seed: Int
+end
+
+impl Rng
+  # Creates a new RNG with a seed
+  fn new(seed: Int) -> Rng
+    Rng { seed: seed }
+  end
+
+  # Creates a new RNG seeded from current time
+  fn from_time() -> Rng
+    # TODO: Use actual system time
+    Rng { seed: 12345 }
+  end
+
+  # Creates a default RNG (thread-local, auto-seeded)
+  fn default() -> Rng
+    Rng::from_time()
+  end
+
+  # Generates the next random number (internal)
+  fn next_raw(mut self) -> Int
+    # Linear congruential generator (for simplicity)
+    # a = 1103515245, c = 12345, m = 2^31
+    self.seed = (self.seed * 1103515245 + 12345) % 2147483648
+    self.seed
+  end
+
+  # Generates a random integer
+  fn next_int(mut self) -> Int
+    self.next_raw()
+  end
+
+  # Generates a random integer in range [min, max)
+  fn int_range(mut self, min: Int, max: Int) -> Int
+    let range = max - min
+    if range <= 0
+      min
+    else
+      min + (self.next_raw() % range)
+    end
+  end
+
+  # Generates a random integer in range [0, max)
+  fn int_below(mut self, max: Int) -> Int
+    self.int_range(0, max)
+  end
+
+  # Generates a random float in [0.0, 1.0)
+  fn next_float(mut self) -> Float
+    self.next_raw() / 2147483648.0
+  end
+
+  # Generates a random float in range [min, max)
+  fn float_range(mut self, min: Float, max: Float) -> Float
+    min + self.next_float() * (max - min)
+  end
+
+  # Generates a random boolean
+  fn next_bool(mut self) -> Bool
+    self.next_raw() % 2 == 0
+  end
+
+  # Generates a random boolean with probability p of being true
+  fn bool_with_probability(mut self, p: Float) -> Bool
+    self.next_float() < p
+  end
+
+  # Selects a random element from an array
+  fn choose(mut self, array: [T]) -> Option<T>
+    if array.is_empty()
+      None
+    else
+      Some(array[self.int_below(array.len())])
+    end
+  end
+
+  # Selects n random elements from an array (with replacement)
+  fn choose_multiple(mut self, array: [T], n: Int) -> [T]
+    let mut result = []
+    for i in 0..n
+      match self.choose(array)
+        Some(elem) -> result.push(elem)
+        None -> break
+      end
+    end
+    result
+  end
+
+  # Shuffles an array in place
+  fn shuffle(mut self, mut array: [T])
+    let n = array.len()
+    for i in (n - 1)..0
+      let j = self.int_range(0, i + 1)
+      # Swap elements
+      let temp = array[i]
+      array[i] = array[j]
+      array[j] = temp
+    end
+  end
+
+  # Returns a shuffled copy of the array
+  fn shuffled(mut self, array: [T]) -> [T]
+    let mut copy = array.clone()
+    self.shuffle(copy)
+    copy
+  end
+
+  # Generates a random character from a string
+  fn char_from(mut self, chars: String) -> Option<Char>
+    if chars.is_empty()
+      None
+    else
+      chars.char_at(self.int_below(chars.len()))
+    end
+  end
+
+  # Generates a random alphanumeric string of length n
+  fn alphanumeric(mut self, n: Int) -> String
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    let mut result = ""
+    for i in 0..n
+      match self.char_from(chars)
+        Some(c) -> result = result + c.to_string()
+        None -> break
+      end
+    end
+    result
+  end
+
+  # Generates random bytes
+  fn bytes(mut self, n: Int) -> [Int]
+    let mut result = []
+    for i in 0..n
+      result.push(self.int_range(0, 256))
+    end
+    result
+  end
+
+  # Generates a random Gaussian (normal) distributed number
+  # Uses Box-Muller transform
+  fn gaussian(mut self, mean: Float, std_dev: Float) -> Float
+    let u1 = self.next_float()
+    let u2 = self.next_float()
+    # Box-Muller transform
+    let z0 = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+    mean + z0 * std_dev
+  end
+
+  # Weighted random selection
+  fn weighted_choice(mut self, weights: [Float]) -> Int
+    let total = weights.fold(0.0, |acc, w| acc + w)
+    let mut r = self.next_float() * total
+
+    for i, weight in weights.enumerate()
+      r = r - weight
+      if r <= 0.0
+        return i
+      end
+    end
+
+    weights.len() - 1
+  end
+end
+
+# Global convenience functions using a thread-local RNG
+
+# Returns a random integer
+fn random_int() -> Int
+  let mut rng = Rng::from_time()
+  rng.next_int()
+end
+
+# Returns a random integer in range [min, max)
+fn random_int_range(min: Int, max: Int) -> Int
+  let mut rng = Rng::from_time()
+  rng.int_range(min, max)
+end
+
+# Returns a random float in [0.0, 1.0)
+fn random_float() -> Float
+  let mut rng = Rng::from_time()
+  rng.next_float()
+end
+
+# Returns a random boolean
+fn random_bool() -> Bool
+  let mut rng = Rng::from_time()
+  rng.next_bool()
+end
+
+# Selects a random element from an array
+fn random_choice(array: [T]) -> Option<T>
+  let mut rng = Rng::from_time()
+  rng.choose(array)
+end
+
+# Returns a shuffled copy of the array
+fn shuffled(array: [T]) -> [T]
+  let mut rng = Rng::from_time()
+  rng.shuffled(array)
+end

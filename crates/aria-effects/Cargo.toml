@@ -1,0 +1,16 @@
+[package]
+name = "aria-effects"
+description = "Algebraic effect system for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }
+indexmap = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+insta = { workspace = true }

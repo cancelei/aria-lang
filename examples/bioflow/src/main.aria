@@ -1,0 +1,473 @@
+# BioFlow - Genomic Data Processing Pipeline
+# Main entry point with example workflows
+#
+# BioFlow demonstrates Aria's strengths in scientific computing:
+# - Design by Contract for data validation
+# - Generic types for reusable pipeline stages
+# - Effect system for tracking I/O and computation
+# - Pattern matching for biological data handling
+
+import core::{
+  sequence::{Sequence, SequenceType},
+  quality::{QualityScores, Q_HIGH},
+  read::{Read},
+  alignment::{Alignment},
+  stats::{SequenceStats, SequenceSetStats, ReadSetStats}
+}
+
+import algorithms::{
+  validation::{is_valid_dna, validate_dna_detailed},
+  stats::{calculate_gc_content, calculate_base_frequencies, dinucleotide_frequencies},
+  kmer::{count_kmers, most_frequent_kmers, kmer_distance, KMerCounts},
+  quality_filter::{filter_reads, FilterConfig, FilterResult},
+  alignment::{smith_waterman, needleman_wunsch, ScoringMatrix}
+}
+
+# Main entry point
+fn main() -> Int
+  println("BioFlow Genomic Pipeline")
+  println("========================\n")
+
+  # Run all example workflows
+  example_sequence_operations()
+  example_quality_analysis()
+  example_kmer_analysis()
+  example_alignment()
+  example_filtering_pipeline()
+
+  println("\nAll examples completed successfully!")
+  0
+end
+
+# Example 1: Sequence Operations
+fn example_sequence_operations()
+  println("Example 1: Sequence Operations")
+  println("------------------------------")
+
+  # Create a DNA sequence with validation
+  let dna_result = Sequence::new("ATGCGATCGATCGATCGATCGATCGATCG")
+
+  match dna_result
+    Ok(seq) => {
+      println("Created sequence: " + seq.to_string())
+      println("Length: " + seq.len().to_string())
+      println("GC content: " + (seq.gc_content() * 100.0).to_string() + "%")
+      println("AT content: " + (seq.at_content() * 100.0).to_string() + "%")
+
+      # Get base counts
+      let (a, c, g, t, n) = seq.base_counts()
+      println("Base counts: A=" + a.to_string() +
+              " C=" + c.to_string() +
+              " G=" + g.to_string() +
+              " T=" + t.to_string() +
+              " N=" + n.to_string())
+
+      # Complement and reverse complement
+      let complement = seq.complement()
+      println("Complement: " + complement.bases)
+
+      let rev_comp = seq.reverse_complement()
+      println("Reverse complement: " + rev_comp.bases)
+
+      # Transcribe to RNA
+      let rna = seq.transcribe()
+      println("Transcribed RNA: " + rna.bases)
+
+      # Check for motifs
+      if seq.contains_motif("GATC")
+        let positions = seq.find_motif_positions("GATC")
+        println("Found GATC motif at positions: " + positions_to_string(positions))
+      end
+
+      # Calculate statistics
+      let stats = SequenceStats::from_sequence(seq)
+      println("Statistics: " + stats.to_string())
+    }
+    Err(e) => println("Error creating sequence: " + e.to_string())
+  end
+
+  println("")
+end
+
+# Example 2: Quality Analysis
+fn example_quality_analysis()
+  println("Example 2: Quality Analysis")
+  println("---------------------------")
+
+  # Create quality scores from Phred+33 encoded string
+  let quality_string = "IIIIIIIIIIIIIIIIIIIIIIIIIIIII"  # All Q40
+  let quality_result = QualityScores::from_phred33(quality_string)
+
+  match quality_result
+    Ok(quality) => {
+      println("Quality scores created, length: " + quality.len().to_string())
+      println("Average quality: " + quality.average().to_string())
+      println("Min quality: " + quality.min().to_string())
+      println("Max quality: " + quality.max().to_string())
+      println("Median quality: " + quality.median().to_string())
+      println("High quality ratio: " + (quality.high_quality_ratio() * 100.0).to_string() + "%")
+      println("Category: " + quality_category_to_string(quality.categorize()))
+
+      # Get statistics
+      let stats = quality.statistics()
+      println("Quality stats: " + stats.to_string())
+    }
+    Err(e) => println("Error creating quality: " + e.to_string())
+  end
+
+  # Create a read combining sequence and quality
+  let read_result = Read::from_strings(
+    "read_001",
+    "ATGCGATCGATCGATCGATCGATCGATCG",
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+  )
+
+  match read_result
+    Ok(read) => {
+      println("\nCreated read: " + read.to_string())
+      println("Is high quality: " + read.is_high_quality().to_string())
+      println("GC content: " + (read.gc_content() * 100.0).to_string() + "%")
+
+      # Export as FASTQ
+      println("\nFASTQ format:")
+      println(read.to_fastq())
+    }
+    Err(e) => println("Error creating read: " + e.to_string())
+  end
+
+  println("")
+end
+
+# Example 3: K-mer Analysis
+fn example_kmer_analysis()
+  println("Example 3: K-mer Analysis")
+  println("-------------------------")
+
+  let seq = Sequence::new("ATGATGATGATGATGATGATGATGATG").unwrap()
+
+  # Count 3-mers
+  let kmer_counts = count_kmers(seq, 3)
+  println("K-mer counts (k=3): " + kmer_counts.to_string())
+  println("Unique 3-mers: " + kmer_counts.unique_count().to_string())
+  println("Total 3-mers: " + kmer_counts.total_kmers.to_string())
+
+  # Most frequent k-mers
+  let top_kmers = kmer_counts.most_frequent(5)
+  println("\nTop 5 most frequent 3-mers:")
+  let mut i = 0
+  loop
+    if i >= top_kmers.len()
+      break
+    end
+    let (kmer, count) = top_kmers[i]
+    println("  " + kmer + ": " + count.to_string())
+    i = i + 1
+  end
+
+  # K-mer distance between sequences
+  let seq2 = Sequence::new("GCTAGCTAGCTAGCTAGCTAGCTAGCT").unwrap()
+  let distance = kmer_distance(seq, seq2, 3)
+  println("\nK-mer distance (k=3) between sequences: " + distance.to_string())
+
+  # K-mer spectrum
+  let spectrum = algorithms::kmer::kmer_spectrum(seq, 4)
+  println("\n4-mer spectrum:")
+  let mut j = 0
+  loop
+    if j >= spectrum.len()
+      break
+    end
+    let (count, num_kmers) = spectrum[j]
+    println("  Count " + count.to_string() + ": " + num_kmers.to_string() + " k-mers")
+    j = j + 1
+  end
+
+  println("")
+end
+
+# Example 4: Sequence Alignment
+fn example_alignment()
+  println("Example 4: Sequence Alignment")
+  println("-----------------------------")
+
+  let seq1 = Sequence::new("AGTACGCA").unwrap()
+  let seq2 = Sequence::new("TATGC").unwrap()
+
+  # Smith-Waterman local alignment
+  let scoring = ScoringMatrix::default_dna()
+  let sw_alignment = smith_waterman(seq1, seq2, scoring)
+
+  println("Smith-Waterman (Local) Alignment:")
+  println(sw_alignment.format())
+  println("")
+
+  # Needleman-Wunsch global alignment
+  let nw_alignment = needleman_wunsch(seq1, seq2, scoring)
+
+  println("Needleman-Wunsch (Global) Alignment:")
+  println(nw_alignment.format())
+  println("")
+
+  # Alignment statistics
+  let stats = core::alignment::AlignmentStats::from_alignment(sw_alignment)
+  println("Alignment stats: " + stats.to_string())
+
+  println("")
+end
+
+# Example 5: Read Filtering Pipeline
+fn example_filtering_pipeline()
+  println("Example 5: Read Filtering Pipeline")
+  println("----------------------------------")
+
+  # Create sample reads with varying quality
+  let mut reads = []
+
+  # High quality read
+  let r1 = Read::from_strings(
+    "read_001",
+    "ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATC",
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+  ).unwrap()
+  reads.push(r1)
+
+  # Medium quality read
+  let r2 = Read::from_strings(
+    "read_002",
+    "GCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+    "555555555555555555555555555555555555555555555555555555"
+  ).unwrap()
+  reads.push(r2)
+
+  # Low quality read
+  let r3 = Read::from_strings(
+    "read_003",
+    "TATATATATATATATATATATATATATATATATATATATATATATATATATA",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  ).unwrap()
+  reads.push(r3)
+
+  # Read with ambiguous bases
+  let r4 = Read::from_strings(
+    "read_004",
+    "ATGCNNNNGATCGATCNNNNGATCGATCGATCGATCGATCGATCGATCGATC",
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+  ).unwrap()
+  reads.push(r4)
+
+  println("Input reads: " + reads.len().to_string())
+
+  # Apply default filter
+  let config = FilterConfig::default()
+  let result = filter_reads(reads, config)
+
+  println("Filter results: " + result.to_string())
+  println("Passed reads: " + result.total_passed.to_string())
+  println("Failed reads: " + result.total_failed.to_string())
+
+  # Show passed reads
+  println("\nPassed reads:")
+  let mut i = 0
+  loop
+    if i >= result.passed.len()
+      break
+    end
+    println("  " + result.passed[i].to_string())
+    i = i + 1
+  end
+
+  # Apply strict filter
+  println("\nApplying strict filter...")
+  let strict_config = FilterConfig::strict()
+  let strict_result = filter_reads(reads, strict_config)
+  println("Strict filter results: " + strict_result.to_string())
+
+  println("")
+end
+
+# Helper function: convert positions array to string
+fn positions_to_string(positions: [Int]) -> String
+  let mut result = "["
+  let mut i = 0
+  loop
+    if i >= positions.len()
+      break
+    end
+    if i > 0
+      result = result + ", "
+    end
+    result = result + positions[i].to_string()
+    i = i + 1
+  end
+  result + "]"
+end
+
+# Helper function: convert quality category to string
+fn quality_category_to_string(cat: core::quality::QualityCategory) -> String
+  match cat
+    core::quality::QualityCategory::Poor => "Poor"
+    core::quality::QualityCategory::Low => "Low"
+    core::quality::QualityCategory::Medium => "Medium"
+    core::quality::QualityCategory::High => "High"
+    core::quality::QualityCategory::Excellent => "Excellent"
+  end
+end
+
+# ============================================================================
+# Pipeline Abstractions
+# ============================================================================
+
+# Generic pipeline stage trait
+trait PipelineStage<I, O>
+  # Process input and return output
+  fn process(self, input: I) -> Result<O, String>
+
+  # Get stage name for logging
+  fn name(self) -> String
+end
+
+# Pipeline that chains stages together
+struct Pipeline<I, O>
+  stages: [Box<dyn PipelineStage<I, O>>]
+  name: String
+end
+
+impl Pipeline
+  fn new(name: String) -> Pipeline
+    Pipeline {
+      stages: [],
+      name: name
+    }
+  end
+
+  fn run(self, input: I) -> Result<O, String> !IO, !Compute
+    println("Running pipeline: " + self.name)
+
+    let mut current = input
+
+    let mut i = 0
+    loop
+      if i >= self.stages.len()
+        break
+      end
+
+      let stage = self.stages[i]
+      println("  Stage " + (i + 1).to_string() + ": " + stage.name())
+
+      match stage.process(current)
+        Ok(output) => current = output
+        Err(e) => return Err("Pipeline failed at stage " + stage.name() + ": " + e)
+      end
+
+      i = i + 1
+    end
+
+    Ok(current)
+  end
+end
+
+# ============================================================================
+# Genomic Pipeline Stages
+# ============================================================================
+
+# Quality filtering stage
+struct QualityFilterStage
+  config: FilterConfig
+end
+
+impl PipelineStage<[Read], [Read]> for QualityFilterStage
+  fn process(self, input: [Read]) -> Result<[Read], String>
+    let result = filter_reads(input, self.config)
+
+    if result.passed.len() == 0
+      Err("No reads passed quality filter")
+    else
+      Ok(result.passed)
+    end
+  end
+
+  fn name(self) -> String
+    "Quality Filter"
+  end
+end
+
+# K-mer counting stage
+struct KMerCountStage
+  k: Int
+end
+
+impl PipelineStage<Sequence, KMerCounts> for KMerCountStage
+  fn process(self, input: Sequence) -> Result<KMerCounts, String>
+    if input.len() < self.k
+      return Err("Sequence too short for k=" + self.k.to_string())
+    end
+
+    Ok(count_kmers(input, self.k))
+  end
+
+  fn name(self) -> String
+    "K-mer Counter (k=" + self.k.to_string() + ")"
+  end
+end
+
+# Statistics stage
+struct StatsStage
+end
+
+impl PipelineStage<[Sequence], SequenceSetStats> for StatsStage
+  fn process(self, input: [Sequence]) -> Result<SequenceSetStats, String>
+    if input.len() == 0
+      return Err("No sequences to analyze")
+    end
+
+    Ok(SequenceSetStats::from_sequences(input))
+  end
+
+  fn name(self) -> String
+    "Statistics Calculator"
+  end
+end
+
+# ============================================================================
+# Demo: Building a Custom Pipeline
+# ============================================================================
+
+fn demo_custom_pipeline()
+  println("\nDemo: Custom Pipeline")
+  println("--------------------")
+
+  # This demonstrates how pipelines would be composed in a full implementation
+  # For now, we'll manually chain operations
+
+  # Step 1: Load sequences
+  let sequences = [
+    Sequence::new("ATGCGATCGATCGATCGATCGATCGATCG").unwrap(),
+    Sequence::new("GCTAGCTAGCTAGCTAGCTAGCTAGCTAG").unwrap(),
+    Sequence::new("TATATATATATATATATATATATATATATAT").unwrap()
+  ]
+
+  println("Loaded " + sequences.len().to_string() + " sequences")
+
+  # Step 2: Calculate statistics
+  let stats = SequenceSetStats::from_sequences(sequences)
+  println("Statistics: " + stats.to_string())
+
+  # Step 3: Analyze each sequence
+  let mut i = 0
+  loop
+    if i >= sequences.len()
+      break
+    end
+
+    let seq = sequences[i]
+    println("\nSequence " + (i + 1).to_string() + ":")
+    println("  Length: " + seq.len().to_string())
+    println("  GC content: " + (seq.gc_content() * 100.0).to_string() + "%")
+
+    let kmers = count_kmers(seq, 3)
+    let top = kmers.most_frequent(3)
+    println("  Top 3-mers: " + top.len().to_string() + " found")
+
+    i = i + 1
+  end
+end

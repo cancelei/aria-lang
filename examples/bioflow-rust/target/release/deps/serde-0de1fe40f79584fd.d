@@ -1,0 +1,14 @@
+/home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/deps/serde-0de1fe40f79584fd.d: /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/build/serde-ae63acfe817ab2ad/out/private.rs
+
+/home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/deps/libserde-0de1fe40f79584fd.rlib: /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/build/serde-ae63acfe817ab2ad/out/private.rs
+
+/home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/deps/libserde-0de1fe40f79584fd.rmeta: /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/build/serde-ae63acfe817ab2ad/out/private.rs
+
+/home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/cancelei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/build/serde-ae63acfe817ab2ad/out/private.rs:
+
+# env-dep:OUT_DIR=/home/cancelei/Projects/aria-lang/examples/bioflow-rust/target/release/build/serde-ae63acfe817ab2ad/out

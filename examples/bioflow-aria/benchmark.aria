@@ -1,0 +1,180 @@
+# BioFlow Aria - Benchmark Framework
+# Portable benchmarking infrastructure for performance testing
+
+import std::time::{Duration, Instant}
+
+# Benchmark result structure
+struct BenchmarkResult
+  name: String
+  iterations: Int
+  total_time_ns: Int
+  avg_time_ns: Float
+  min_time_ns: Int
+  max_time_ns: Int
+
+  invariant self.iterations > 0 : "Must have at least one iteration"
+  invariant self.total_time_ns >= 0 : "Time cannot be negative"
+end
+
+impl BenchmarkResult
+  fn avg_time_ms(self) -> Float
+    self.avg_time_ns / 1_000_000.0
+  end
+
+  fn total_time_ms(self) -> Float
+    self.total_time_ns.to_float() / 1_000_000.0
+  end
+
+  fn min_time_ms(self) -> Float
+    self.min_time_ns.to_float() / 1_000_000.0
+  end
+
+  fn max_time_ms(self) -> Float
+    self.max_time_ns.to_float() / 1_000_000.0
+  end
+
+  fn to_string(self) -> String
+    self.name + ": " +
+    self.avg_time_ms().to_string() + "ms avg (" +
+    self.min_time_ms().to_string() + "ms min, " +
+    self.max_time_ms().to_string() + "ms max) over " +
+    self.iterations.to_string() + " iterations"
+  end
+end
+
+# Benchmark a function with multiple iterations
+fn benchmark<T>(name: String, iterations: Int, f: Fn() -> T) -> BenchmarkResult
+  requires iterations > 0 : "Must have at least one iteration"
+  ensures result.iterations == iterations
+  ensures result.name == name
+
+  let mut total_ns = 0
+  let mut min_ns = 9223372036854775807  # Max Int64
+  let mut max_ns = 0
+
+  # Warm-up run (not counted)
+  let _ = f()
+
+  # Timed iterations
+  let mut i = 0
+  loop
+    if i >= iterations
+      break
+    end
+
+    let start = Instant::now()
+    let _ = f()
+    let elapsed = start.elapsed()
+
+    let elapsed_ns = elapsed.as_nanos()
+    total_ns = total_ns + elapsed_ns
+
+    if elapsed_ns < min_ns
+      min_ns = elapsed_ns
+    end
+
+    if elapsed_ns > max_ns
+      max_ns = elapsed_ns
+    end
+
+    i = i + 1
+  end
+
+  let avg_ns = total_ns.to_float() / iterations.to_float()
+
+  BenchmarkResult {
+    name: name,
+    iterations: iterations,
+    total_time_ns: total_ns,
+    avg_time_ns: avg_ns,
+    min_time_ns: min_ns,
+    max_time_ns: max_ns
+  }
+end
+
+# Benchmark with different input sizes
+fn benchmark_scaling<T>(
+  name: String,
+  sizes: [Int],
+  iterations: Int,
+  f: Fn(Int) -> T
+) -> [BenchmarkResult]
+  requires iterations > 0
+  requires sizes.len() > 0
+  ensures result.len() == sizes.len()
+
+  let mut results = []
+
+  let mut i = 0
+  loop
+    if i >= sizes.len()
+      break
+    end
+
+    let size = sizes[i]
+    let bench_name = name + " (" + size.to_string() + ")"
+
+    let result = benchmark(bench_name, iterations, || f(size))
+    results.push(result)
+
+    i = i + 1
+  end
+
+  results
+end
+
+# Print benchmark results in a formatted table
+fn print_results(results: [BenchmarkResult])
+  println("=" repeat 80)
+  println("Benchmark Results")
+  println("=" repeat 80)
+  println("")
+
+  println("| Benchmark | Avg Time | Min Time | Max Time | Iterations |")
+  println("|-----------|----------|----------|----------|------------|")
+
+  let mut i = 0
+  loop
+    if i >= results.len()
+      break
+    end
+
+    let r = results[i]
+    println("| " + r.name + " | " +
+            r.avg_time_ms().to_string() + "ms | " +
+            r.min_time_ms().to_string() + "ms | " +
+            r.max_time_ms().to_string() + "ms | " +
+            r.iterations.to_string() + " |")
+
+    i = i + 1
+  end
+
+  println("")
+  println("=" repeat 80)
+end
+
+# Compare with baseline (calculate speedup)
+fn compare_with_baseline(aria_time_ms: Float, baseline_time_ms: Float) -> Float
+  requires aria_time_ms > 0.0
+  requires baseline_time_ms > 0.0
+  ensures result > 0.0
+
+  baseline_time_ms / aria_time_ms
+end
+
+# Calculate throughput (operations per second)
+fn throughput(time_ns: Int) -> Float
+  requires time_ns > 0
+  ensures result > 0.0
+
+  1_000_000_000.0 / time_ns.to_float()
+end
+
+# Calculate bytes per second for sequence operations
+fn throughput_bytes(sequence_length: Int, time_ns: Int) -> Float
+  requires sequence_length > 0
+  requires time_ns > 0
+  ensures result > 0.0
+
+  (sequence_length.to_float() * 1_000_000_000.0) / time_ns.to_float()
+end

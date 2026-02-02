@@ -1,0 +1,223 @@
+# Aria Standard Library - Result Type
+# Error handling with Result type for operations that may fail
+
+# Result type representing either success (Ok) or failure (Err)
+enum Result<T, E>
+  Ok(T)
+  Err(E)
+end
+
+impl Result<T, E>
+  # Check if result is Ok
+  fn is_ok(self) -> Bool
+    match self
+      Ok(_) -> true
+      Err(_) -> false
+    end
+  end
+
+  # Check if result is Err
+  fn is_err(self) -> Bool
+    match self
+      Ok(_) -> false
+      Err(_) -> true
+    end
+  end
+
+  # Unwrap the Ok value, panic if Err
+  fn unwrap(self) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> panic("called Result::unwrap() on an Err value")
+    end
+  end
+
+  # Unwrap the Err value, panic if Ok
+  fn unwrap_err(self) -> E
+    match self
+      Ok(value) -> panic("called Result::unwrap_err() on an Ok value")
+      Err(err) -> err
+    end
+  end
+
+  # Unwrap with custom panic message
+  fn expect(self, message: String) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> panic(message)
+    end
+  end
+
+  # Unwrap Err with custom panic message
+  fn expect_err(self, message: String) -> E
+    match self
+      Ok(value) -> panic(message)
+      Err(err) -> err
+    end
+  end
+
+  # Unwrap or return default value
+  fn unwrap_or(self, default: T) -> T
+    match self
+      Ok(value) -> value
+      Err(_) -> default
+    end
+  end
+
+  # Unwrap or compute default from error
+  fn unwrap_or_else(self, f: Fn(E) -> T) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> f(err)
+    end
+  end
+
+  # Map Ok value to another type
+  fn map<U>(self, f: Fn(T) -> U) -> Result<U, E>
+    match self
+      Ok(value) -> Ok(f(value))
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Map Err value to another type
+  fn map_err<F>(self, f: Fn(E) -> F) -> Result<T, F>
+    match self
+      Ok(value) -> Ok(value)
+      Err(err) -> Err(f(err))
+    end
+  end
+
+  # Apply function if Ok, otherwise return Err
+  fn and_then<U>(self, f: Fn(T) -> Result<U, E>) -> Result<U, E>
+    match self
+      Ok(value) -> f(value)
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Return self if Ok, otherwise apply function to Err
+  fn or_else<F>(self, f: Fn(E) -> Result<T, F>) -> Result<T, F>
+    match self
+      Ok(value) -> Ok(value)
+      Err(err) -> f(err)
+    end
+  end
+
+  # Convert Result to Option, discarding error
+  fn ok(self) -> Option<T>
+    match self
+      Ok(value) -> Some(value)
+      Err(_) -> None
+    end
+  end
+
+  # Convert Result to Option of error, discarding Ok value
+  fn err(self) -> Option<E>
+    match self
+      Ok(_) -> None
+      Err(err) -> Some(err)
+    end
+  end
+
+  # Flatten nested Result
+  fn flatten(self) -> Result<T, E>
+    match self
+      Ok(Ok(value)) -> Ok(value)
+      Ok(Err(err)) -> Err(err)
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Return self if Ok, otherwise return other
+  fn or(self, other: Result<T, E>) -> Result<T, E>
+    match self
+      Ok(_) -> self
+      Err(_) -> other
+    end
+  end
+
+  # Return other if self is Ok, otherwise return self
+  fn and<U>(self, other: Result<U, E>) -> Result<U, E>
+    match self
+      Ok(_) -> other
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Convert Result<&T, E> to Result<T, E> by cloning
+  fn cloned(self) -> Result<T, E>
+    match self
+      Ok(value) -> Ok(value.clone())
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Check if Ok value matches predicate
+  fn contains(self, value: T) -> Bool
+    match self
+      Ok(v) -> v == value
+      Err(_) -> false
+    end
+  end
+
+  # Check if Err value matches predicate
+  fn contains_err(self, err: E) -> Bool
+    match self
+      Ok(_) -> false
+      Err(e) -> e == err
+    end
+  end
+
+  # Transpose Result<Option<T>, E> to Option<Result<T, E>>
+  fn transpose(self) -> Option<Result<T, E>>
+    match self
+      Ok(Some(value)) -> Some(Ok(value))
+      Ok(None) -> None
+      Err(err) -> Some(Err(err))
+    end
+  end
+end
+
+# Helper function to create Ok variant
+fn Ok<T, E>(value: T) -> Result<T, E>
+  Result::Ok(value)
+end
+
+# Helper function to create Err variant
+fn Err<T, E>(error: E) -> Result<T, E>
+  Result::Err(error)
+end
+
+# Collect array of Results into Result of array
+fn collect_results<T, E>(results: [Result<T, E>]) -> Result<[T], E>
+  let mut values: [T] = []
+  let mut i = 0
+
+  while i < results.len()
+    match results[i]
+      Ok(value) -> values.push(value)
+      Err(err) -> return Err(err)
+    end
+    i = i + 1
+  end
+
+  Ok(values)
+end
+
+# Partition array of Results into successes and failures
+fn partition_results<T, E>(results: [Result<T, E>]) -> ([T], [E])
+  let mut oks: [T] = []
+  let mut errs: [E] = []
+  let mut i = 0
+
+  while i < results.len()
+    match results[i]
+      Ok(value) -> oks.push(value)
+      Err(err) -> errs.push(err)
+    end
+    i = i + 1
+  end
+
+  (oks, errs)
+end

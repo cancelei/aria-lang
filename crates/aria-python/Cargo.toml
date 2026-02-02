@@ -1,0 +1,28 @@
+[package]
+name = "aria-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "aria_python"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# PyO3 for Python bindings
+pyo3 = { version = "0.27", features = ["extension-module"] }
+
+# Aria crates
+aria-lexer = { path = "../aria-lexer" }
+aria-parser = { path = "../aria-parser" }
+aria-ast = { path = "../aria-ast" }
+aria-interpreter = { path = "../aria-interpreter" }
+
+# Shared workspace dependencies
+smol_str.workspace = true
+indexmap.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

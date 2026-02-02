@@ -1,0 +1,27 @@
+[package]
+name = "aria-ffi"
+description = "Foreign Function Interface support for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Core FFI support
+libc.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Shared workspace dependencies
+smol_str.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[features]
+default = []
+# Future feature flags for Python and WASM support
+# python = []
+# wasm = []

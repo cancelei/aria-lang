@@ -1,0 +1,318 @@
+/*
+ * Aria Lang - Cyberpunk Theme
+ * "In the neon glow of tomorrow's code"
+ */
+
+:root {
+  /* Primary Colors */
+  --cyber-cyan: #00FFFF;
+  --cyber-magenta: #FF00FF;
+  --cyber-green: #39FF14;
+  --cyber-blue: #0FF;
+  --cyber-pink: #F0F;
+
+  /* Background */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2a2a2a;
+  --bg-code: #0d0d0d;
+
+  /* Text */
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-accent: var(--cyber-cyan);
+  --text-error: #ff0040;
+  --text-success: var(--cyber-green);
+
+  /* Syntax Highlighting */
+  --syntax-keyword: var(--cyber-magenta);
+  --syntax-function: var(--cyber-cyan);
+  --syntax-string: var(--cyber-green);
+  --syntax-number: #ff6ec7;
+  --syntax-comment: #666;
+  --syntax-type: #ffd700;
+  --syntax-variable: #fff;
+
+  /* Effects */
+  --glow-cyan: 0 0 10px var(--cyber-cyan);
+  --glow-magenta: 0 0 10px var(--cyber-magenta);
+  --glow-green: 0 0 10px var(--cyber-green);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.6s ease;
+}
+
+/* Base Styles */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Roboto', sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Cyberpunk Background Effect */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(90deg, transparent 0%, var(--cyber-cyan) 50%, transparent 100%),
+    radial-gradient(circle at 20% 50%, rgba(0, 255, 255, 0.05), transparent 50%),
+    radial-gradient(circle at 80% 50%, rgba(255, 0, 255, 0.05), transparent 50%);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: -1;
+  animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+}
+
+/* Scanline Effect */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(20px); }
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Orbitron', 'Exo 2', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: 3rem;
+  background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-magenta));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: var(--glow-cyan);
+  animation: glitch 3s infinite;
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+}
+
+/* Code Blocks */
+code, pre {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9rem;
+}
+
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--cyber-cyan);
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  box-shadow: var(--glow-cyan);
+  position: relative;
+}
+
+pre::before {
+  content: '> aria_';
+  color: var(--cyber-cyan);
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  animation: cursor-blink 1s infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Buttons */
+.btn {
+  background: transparent;
+  border: 2px solid var(--cyber-cyan);
+  color: var(--cyber-cyan);
+  padding: 0.75rem 2rem;
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition-normal);
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--cyber-cyan), transparent);
+  transition: var(--transition-normal);
+}
+
+.btn:hover {
+  color: var(--bg-primary);
+  box-shadow: var(--glow-cyan);
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+/* Links */
+a {
+  color: var(--cyber-cyan);
+  text-decoration: none;
+  position: relative;
+  transition: var(--transition-fast);
+}
+
+a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--cyber-cyan);
+  box-shadow: var(--glow-cyan);
+  transition: var(--transition-normal);
+}
+
+a:hover::after {
+  width: 100%;
+}
+
+/* Cards */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--cyber-cyan);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: var(--glow-cyan);
+  transition: var(--transition-normal);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 20px var(--cyber-cyan);
+}
+
+/* Input Fields */
+input, textarea {
+  background: var(--bg-code);
+  border: 1px solid var(--cyber-cyan);
+  color: var(--text-primary);
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  transition: var(--transition-fast);
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  box-shadow: var(--glow-cyan);
+  border-color: var(--cyber-magenta);
+}
+
+/* Syntax Highlighting Classes */
+.token.keyword { color: var(--syntax-keyword); }
+.token.function { color: var(--syntax-function); }
+.token.string { color: var(--syntax-string); }
+.token.number { color: var(--syntax-number); }
+.token.comment { color: var(--syntax-comment); font-style: italic; }
+.token.type { color: var(--syntax-type); }
+.token.variable { color: var(--syntax-variable); }
+
+/* Error Messages */
+.error {
+  background: rgba(255, 0, 64, 0.1);
+  border-left: 4px solid var(--text-error);
+  padding: 1rem;
+  color: var(--text-error);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Success Messages */
+.success {
+  background: rgba(57, 255, 20, 0.1);
+  border-left: 4px solid var(--cyber-green);
+  padding: 1rem;
+  color: var(--cyber-green);
+}
+
+/* Loading Animation */
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--cyber-cyan);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Matrix Rain Effect (optional background) */
+.matrix-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -2;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  h1 { font-size: 2rem; }
+  .btn { padding: 0.5rem 1rem; }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

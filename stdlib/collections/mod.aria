@@ -1,0 +1,305 @@
+# Aria Standard Library - Collections Module
+# Data structures for storing and organizing data
+
+# Import HashMap implementation
+import "./hashmap.aria" as map
+
+# Re-export HashMap
+export map::HashMap
+export map::hashmap
+export map::hashmap_from
+
+# Set implementation using HashMap
+struct HashSet<T>
+  inner: HashMap<T, ()>
+end
+
+impl HashSet<T>
+  # Create a new empty HashSet
+  fn new() -> HashSet<T>
+    HashSet {
+      inner: HashMap::new()
+    }
+  end
+
+  # Create with specific capacity
+  fn with_capacity(capacity: Int) -> HashSet<T>
+    HashSet {
+      inner: HashMap::with_capacity(capacity)
+    }
+  end
+
+  # Insert a value into the set
+  fn insert(mut self, value: T) -> Bool
+    let had_value = self.contains(value)
+    self.inner.insert(value, ())
+    !had_value
+  end
+
+  # Check if set contains a value
+  fn contains(self, value: T) -> Bool
+    self.inner.contains_key(value)
+  end
+
+  # Remove a value from the set
+  fn remove(mut self, value: T) -> Bool
+    match self.inner.remove(value)
+      Some(_) -> true
+      None -> false
+    end
+  end
+
+  # Get the number of elements
+  fn len(self) -> Int
+    self.inner.len()
+  end
+
+  # Check if set is empty
+  fn is_empty(self) -> Bool
+    self.inner.is_empty()
+  end
+
+  # Clear all elements
+  fn clear(mut self)
+    self.inner.clear()
+  end
+
+  # Get all values as array
+  fn to_array(self) -> [T]
+    self.inner.keys()
+  end
+
+  # Union of two sets
+  fn union(self, other: HashSet<T>) -> HashSet<T>
+    let mut result = self.clone()
+    let other_values = other.to_array()
+    let mut i = 0
+
+    while i < other_values.len()
+      result.insert(other_values[i])
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Intersection of two sets
+  fn intersection(self, other: HashSet<T>) -> HashSet<T>
+    let mut result = HashSet::new()
+    let values = self.to_array()
+    let mut i = 0
+
+    while i < values.len()
+      if other.contains(values[i])
+        result.insert(values[i])
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Difference of two sets (elements in self but not in other)
+  fn difference(self, other: HashSet<T>) -> HashSet<T>
+    let mut result = HashSet::new()
+    let values = self.to_array()
+    let mut i = 0
+
+    while i < values.len()
+      if !other.contains(values[i])
+        result.insert(values[i])
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Symmetric difference (elements in either but not both)
+  fn symmetric_difference(self, other: HashSet<T>) -> HashSet<T>
+    let mut result = HashSet::new()
+
+    # Add elements from self not in other
+    let self_values = self.to_array()
+    let mut i = 0
+    while i < self_values.len()
+      if !other.contains(self_values[i])
+        result.insert(self_values[i])
+      end
+      i = i + 1
+    end
+
+    # Add elements from other not in self
+    let other_values = other.to_array()
+    i = 0
+    while i < other_values.len()
+      if !self.contains(other_values[i])
+        result.insert(other_values[i])
+      end
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Check if this set is a subset of another
+  fn is_subset(self, other: HashSet<T>) -> Bool
+    let values = self.to_array()
+    let mut i = 0
+
+    while i < values.len()
+      if !other.contains(values[i])
+        return false
+      end
+      i = i + 1
+    end
+
+    true
+  end
+
+  # Check if this set is a superset of another
+  fn is_superset(self, other: HashSet<T>) -> Bool
+    other.is_subset(self)
+  end
+
+  # Check if sets are disjoint (no common elements)
+  fn is_disjoint(self, other: HashSet<T>) -> Bool
+    let values = self.to_array()
+    let mut i = 0
+
+    while i < values.len()
+      if other.contains(values[i])
+        return false
+      end
+      i = i + 1
+    end
+
+    true
+  end
+end
+
+# Helper to create HashSet
+fn hashset<T>() -> HashSet<T>
+  HashSet::new()
+end
+
+# Create HashSet from array
+fn hashset_from<T>(values: [T]) -> HashSet<T>
+  let mut set = HashSet::new()
+  let mut i = 0
+
+  while i < values.len()
+    set.insert(values[i])
+    i = i + 1
+  end
+
+  set
+end
+
+# Vector - dynamic array (alias for now, could be optimized later)
+type Vec<T> = [T]
+
+# LinkedList node
+struct ListNode<T>
+  value: T
+  next: Option<Box<ListNode<T>>>
+end
+
+# LinkedList (singly-linked)
+struct LinkedList<T>
+  head: Option<Box<ListNode<T>>>
+  length: Int
+end
+
+impl LinkedList<T>
+  # Create empty linked list
+  fn new() -> LinkedList<T>
+    LinkedList {
+      head: None,
+      length: 0
+    }
+  end
+
+  # Add element to front
+  fn push_front(mut self, value: T)
+    let new_node = ListNode {
+      value: value,
+      next: self.head
+    }
+    self.head = Some(Box::new(new_node))
+    self.length = self.length + 1
+  end
+
+  # Remove element from front
+  fn pop_front(mut self) -> Option<T>
+    match self.head
+      Some(node) ->
+        self.head = node.next
+        self.length = self.length - 1
+        Some(node.value)
+      None -> None
+    end
+  end
+
+  # Get length
+  fn len(self) -> Int
+    self.length
+  end
+
+  # Check if empty
+  fn is_empty(self) -> Bool
+    self.length == 0
+  end
+
+  # Get first element
+  fn front(self) -> Option<T>
+    match self.head
+      Some(node) -> Some(node.value)
+      None -> None
+    end
+  end
+
+  # Convert to array
+  fn to_array(self) -> [T]
+    let mut result: [T] = []
+    let mut current = self.head
+
+    while current.is_some()
+      match current
+        Some(node) ->
+          result.push(node.value)
+          current = node.next
+        None -> break
+      end
+    end
+
+    result
+  end
+end
+
+# Binary Tree Node
+struct TreeNode<T>
+  value: T
+  left: Option<Box<TreeNode<T>>>
+  right: Option<Box<TreeNode<T>>>
+end
+
+impl TreeNode<T>
+  # Create a leaf node
+  fn leaf(value: T) -> TreeNode<T>
+    TreeNode {
+      value: value,
+      left: None,
+      right: None
+    }
+  end
+
+  # Create node with children
+  fn new(value: T, left: Option<Box<TreeNode<T>>>, right: Option<Box<TreeNode<T>>>) -> TreeNode<T>
+    TreeNode {
+      value: value,
+      left: left,
+      right: right
+    }
+  end
+end

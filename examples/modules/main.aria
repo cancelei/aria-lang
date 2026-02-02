@@ -1,0 +1,18 @@
+# Main program demonstrating module imports
+import math::{add, multiply}
+import utils::{max, clamp}
+
+fn main() -> Int
+  let x = add(10, 20)
+  let y = multiply(5, 6)
+  let z = max(x, y)
+
+  println(x)
+  println(y)
+  println(z)
+
+  let clamped = clamp(100, 0, 50)
+  println(clamped)
+
+  0
+end

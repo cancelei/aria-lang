@@ -1,0 +1,18 @@
+[package]
+name = "aria-types"
+description = "Type system and type checker for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+aria-contracts = { path = "../aria-contracts" }
+aria-diagnostics = { path = "../aria-diagnostics" }
+thiserror = { workspace = true }
+indexmap = { workspace = true }
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+insta = { workspace = true }

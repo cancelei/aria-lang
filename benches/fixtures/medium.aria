@@ -1,0 +1,338 @@
+# Medium benchmark program (~250 lines)
+# Tests various language features: functions, control flow, collections, structs
+
+# ============================================================================
+# Basic Math Functions
+# ============================================================================
+
+fn add(a: Int, b: Int) -> Int
+  a + b
+end
+
+fn sub(a: Int, b: Int) -> Int
+  a - b
+end
+
+fn mul(a: Int, b: Int) -> Int
+  a * b
+end
+
+fn div(a: Int, b: Int) -> Int
+  a / b
+end
+
+fn modulo(a: Int, b: Int) -> Int
+  a % b
+end
+
+fn power(base: Int, exp: Int) -> Int
+  if exp == 0
+    1
+  elsif exp == 1
+    base
+  else
+    base * power(base, exp - 1)
+  end
+end
+
+fn abs(x: Int) -> Int
+  if x < 0
+    0 - x
+  else
+    x
+  end
+end
+
+fn min(a: Int, b: Int) -> Int
+  if a < b
+    a
+  else
+    b
+  end
+end
+
+fn max(a: Int, b: Int) -> Int
+  if a > b
+    a
+  else
+    b
+  end
+end
+
+fn clamp(value: Int, lower: Int, upper: Int) -> Int
+  min(max(value, lower), upper)
+end
+
+# ============================================================================
+# Recursive Functions
+# ============================================================================
+
+fn factorial(n: Int) -> Int
+  if n <= 1
+    1
+  else
+    n * factorial(n - 1)
+  end
+end
+
+fn fibonacci(n: Int) -> Int
+  if n <= 1
+    n
+  else
+    fibonacci(n - 1) + fibonacci(n - 2)
+  end
+end
+
+fn gcd(a: Int, b: Int) -> Int
+  if b == 0
+    a
+  else
+    gcd(b, modulo(a, b))
+  end
+end
+
+fn lcm(a: Int, b: Int) -> Int
+  div(mul(a, b), gcd(a, b))
+end
+
+fn sum_to_n(n: Int) -> Int
+  if n <= 0
+    0
+  else
+    n + sum_to_n(n - 1)
+  end
+end
+
+fn count_digits(n: Int) -> Int
+  if n < 10
+    1
+  else
+    1 + count_digits(div(n, 10))
+  end
+end
+
+# ============================================================================
+# Higher-Order Patterns
+# ============================================================================
+
+fn apply_twice(f: Fn(Int) -> Int, x: Int) -> Int
+  f(f(x))
+end
+
+fn double(x: Int) -> Int
+  x * 2
+end
+
+fn square(x: Int) -> Int
+  x * x
+end
+
+fn increment(x: Int) -> Int
+  x + 1
+end
+
+fn decrement(x: Int) -> Int
+  x - 1
+end
+
+# ============================================================================
+# Conditional Logic
+# ============================================================================
+
+fn is_even(n: Int) -> Bool
+  modulo(n, 2) == 0
+end
+
+fn is_odd(n: Int) -> Bool
+  not is_even(n)
+end
+
+fn is_positive(n: Int) -> Bool
+  n > 0
+end
+
+fn is_negative(n: Int) -> Bool
+  n < 0
+end
+
+fn is_zero(n: Int) -> Bool
+  n == 0
+end
+
+fn sign(n: Int) -> Int
+  if n > 0
+    1
+  elsif n < 0
+    0 - 1
+  else
+    0
+  end
+end
+
+fn is_prime(n: Int) -> Bool
+  if n <= 1
+    false
+  elsif n <= 3
+    true
+  elsif is_even(n)
+    false
+  else
+    check_prime_helper(n, 3)
+  end
+end
+
+fn check_prime_helper(n: Int, i: Int) -> Bool
+  if mul(i, i) > n
+    true
+  elsif modulo(n, i) == 0
+    false
+  else
+    check_prime_helper(n, i + 2)
+  end
+end
+
+# ============================================================================
+# Loop-based computations (using tail recursion)
+# ============================================================================
+
+fn sum_range(start: Int, stop: Int, acc: Int) -> Int
+  if start >= stop
+    acc
+  else
+    sum_range(start + 1, stop, acc + start)
+  end
+end
+
+fn product_range(start: Int, stop: Int, acc: Int) -> Int
+  if start >= stop
+    acc
+  else
+    product_range(start + 1, stop, mul(acc, start))
+  end
+end
+
+fn count_primes_up_to(n: Int, current: Int, count: Int) -> Int
+  if current > n
+    count
+  elsif is_prime(current)
+    count_primes_up_to(n, current + 1, count + 1)
+  else
+    count_primes_up_to(n, current + 1, count)
+  end
+end
+
+fn fib_iter(n: Int, a: Int, b: Int) -> Int
+  if n <= 0
+    a
+  else
+    fib_iter(n - 1, b, a + b)
+  end
+end
+
+# ============================================================================
+# String-like operations (simulated with numbers)
+# ============================================================================
+
+fn reverse_digits(n: Int, acc: Int) -> Int
+  if n == 0
+    acc
+  else
+    reverse_digits(div(n, 10), mul(acc, 10) + modulo(n, 10))
+  end
+end
+
+fn is_palindrome_number(n: Int) -> Bool
+  n == reverse_digits(n, 0)
+end
+
+fn sum_digits(n: Int) -> Int
+  if n == 0
+    0
+  else
+    modulo(n, 10) + sum_digits(div(n, 10))
+  end
+end
+
+fn digital_root(n: Int) -> Int
+  if n < 10
+    n
+  else
+    digital_root(sum_digits(n))
+  end
+end
+
+# ============================================================================
+# Complex Calculations
+# ============================================================================
+
+fn collatz_steps(n: Int, steps: Int) -> Int
+  if n == 1
+    steps
+  elsif is_even(n)
+    collatz_steps(div(n, 2), steps + 1)
+  else
+    collatz_steps(mul(n, 3) + 1, steps + 1)
+  end
+end
+
+fn ackermann(m: Int, n: Int) -> Int
+  if m == 0
+    n + 1
+  elsif n == 0
+    ackermann(m - 1, 1)
+  else
+    ackermann(m - 1, ackermann(m, n - 1))
+  end
+end
+
+fn binomial(n: Int, k: Int) -> Int
+  if k == 0 or k == n
+    1
+  else
+    binomial(n - 1, k - 1) + binomial(n - 1, k)
+  end
+end
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+fn main()
+  # Basic arithmetic
+  let x = 42
+  let y = 17
+  let sum = add(x, y)
+  let diff = sub(x, y)
+  let prod = mul(x, y)
+
+  # Recursive functions
+  let fact5 = factorial(5)
+  let fib10 = fibonacci(10)
+  let g = gcd(48, 18)
+
+  # Higher-order patterns
+  let doubled = apply_twice(double, 3)
+  let squared = apply_twice(square, 2)
+
+  # Predicates
+  let even_check = is_even(42)
+  let prime_check = is_prime(17)
+
+  # Complex calculations
+  let collatz = collatz_steps(27, 0)
+  let binom = binomial(10, 5)
+  let fib_fast = fib_iter(30, 0, 1)
+
+  # Output results
+  print(sum)
+  print(diff)
+  print(prod)
+  print(fact5)
+  print(fib10)
+  print(g)
+  print(doubled)
+  print(squared)
+  print(collatz)
+  print(binom)
+  print(fib_fast)
+end

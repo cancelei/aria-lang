@@ -1,0 +1,545 @@
+# BioFlow - Sequence Type
+# DNA/RNA sequences with validation contracts
+#
+# This module provides a type-safe representation of genomic sequences
+# with compile-time and runtime validation of nucleotide bases.
+
+# Valid DNA nucleotide bases (A, C, G, T) plus N for ambiguous
+const VALID_DNA_BASES: [Char] = ['A', 'C', 'G', 'T', 'N']
+
+# Valid RNA nucleotide bases (A, C, G, U) plus N for ambiguous
+const VALID_RNA_BASES: [Char] = ['A', 'C', 'G', 'U', 'N']
+
+# Error types for sequence operations
+enum SequenceError
+  EmptySequence
+  InvalidBase(position: Int, found: Char)
+  InvalidLength(expected: Int, actual: Int)
+end
+
+# Sequence type enumeration
+enum SequenceType
+  DNA
+  RNA
+  Unknown
+end
+
+# Sequence struct with Design by Contract invariants
+# A Sequence represents a validated genomic sequence (DNA or RNA)
+struct Sequence
+  bases: String
+  id: Option<String>
+  description: Option<String>
+  seq_type: SequenceType
+
+  # Invariant: bases must be non-empty
+  invariant self.bases.len() > 0 : "Sequence must have at least one base"
+
+  # Invariant: all bases must be valid for the sequence type
+  invariant self.is_valid() : "All bases must be valid nucleotides"
+end
+
+impl Sequence
+  # Creates a new DNA sequence with validation
+  #
+  # Contracts:
+  # - requires: input bases string is non-empty
+  # - ensures: result contains only valid DNA bases if Ok
+  fn new(bases: String) -> Result<Sequence, SequenceError>
+    requires bases.len() > 0 : "Bases string cannot be empty"
+    ensures result.is_ok() implies result.unwrap().is_valid()
+
+    # Validate and normalize to uppercase
+    let normalized = bases.to_uppercase()
+
+    # Check each base
+    let mut i = 0
+    loop
+      if i >= normalized.len()
+        break
+      end
+
+      let c = normalized.char_at(i)
+      if !Self::is_valid_dna_base(c)
+        return Err(SequenceError::InvalidBase(position: i, found: c))
+      end
+
+      i = i + 1
+    end
+
+    Ok(Sequence {
+      bases: normalized,
+      id: None,
+      description: None,
+      seq_type: SequenceType::DNA
+    })
+  end
+
+  # Creates a new sequence with an identifier
+  fn with_id(bases: String, id: String) -> Result<Sequence, SequenceError>
+    requires bases.len() > 0 : "Bases string cannot be empty"
+    requires id.len() > 0 : "ID cannot be empty"
+    ensures result.is_ok() implies result.unwrap().id.is_some()
+
+    let mut seq = Self::new(bases)?
+    seq.id = Some(id)
+    Ok(seq)
+  end
+
+  # Creates a new sequence with full metadata
+  fn with_metadata(
+    bases: String,
+    id: String,
+    description: String,
+    seq_type: SequenceType
+  ) -> Result<Sequence, SequenceError>
+    requires bases.len() > 0 : "Bases string cannot be empty"
+    ensures result.is_ok() implies result.unwrap().id.is_some()
+    ensures result.is_ok() implies result.unwrap().description.is_some()
+
+    let normalized = bases.to_uppercase()
+
+    # Validate based on sequence type
+    let valid = match seq_type
+      SequenceType::DNA => Self::validate_dna(normalized)
+      SequenceType::RNA => Self::validate_rna(normalized)
+      SequenceType::Unknown => Self::validate_dna(normalized)
+    end
+
+    match valid
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    end
+
+    Ok(Sequence {
+      bases: normalized,
+      id: Some(id),
+      description: Some(description),
+      seq_type: seq_type
+    })
+  end
+
+  # Validates that a string contains only valid DNA bases
+  fn validate_dna(bases: String) -> Result<(), SequenceError>
+    let mut i = 0
+    loop
+      if i >= bases.len()
+        break
+      end
+
+      let c = bases.char_at(i)
+      if !Self::is_valid_dna_base(c)
+        return Err(SequenceError::InvalidBase(position: i, found: c))
+      end
+
+      i = i + 1
+    end
+    Ok(())
+  end
+
+  # Validates that a string contains only valid RNA bases
+  fn validate_rna(bases: String) -> Result<(), SequenceError>
+    let mut i = 0
+    loop
+      if i >= bases.len()
+        break
+      end
+
+      let c = bases.char_at(i)
+      if !Self::is_valid_rna_base(c)
+        return Err(SequenceError::InvalidBase(position: i, found: c))
+      end
+
+      i = i + 1
+    end
+    Ok(())
+  end
+
+  # Checks if a character is a valid DNA base
+  fn is_valid_dna_base(c: Char) -> Bool
+    c == 'A' or c == 'C' or c == 'G' or c == 'T' or c == 'N'
+  end
+
+  # Checks if a character is a valid RNA base
+  fn is_valid_rna_base(c: Char) -> Bool
+    c == 'A' or c == 'C' or c == 'G' or c == 'U' or c == 'N'
+  end
+
+  # Validates that all bases in the sequence are valid
+  fn is_valid(self) -> Bool
+    match self.seq_type
+      SequenceType::DNA => Self::validate_dna(self.bases).is_ok()
+      SequenceType::RNA => Self::validate_rna(self.bases).is_ok()
+      SequenceType::Unknown => Self::validate_dna(self.bases).is_ok()
+    end
+  end
+
+  # Returns the length of the sequence
+  fn len(self) -> Int
+    ensures result > 0
+    self.bases.len()
+  end
+
+  # Checks if the sequence contains any ambiguous bases (N)
+  fn has_ambiguous(self) -> Bool
+    let mut i = 0
+    loop
+      if i >= self.bases.len()
+        break
+      end
+      if self.bases.char_at(i) == 'N'
+        return true
+      end
+      i = i + 1
+    end
+    false
+  end
+
+  # Counts the number of ambiguous bases
+  fn count_ambiguous(self) -> Int
+    ensures result >= 0
+    ensures result <= self.len()
+
+    let mut count = 0
+    let mut i = 0
+    loop
+      if i >= self.bases.len()
+        break
+      end
+      if self.bases.char_at(i) == 'N'
+        count = count + 1
+      end
+      i = i + 1
+    end
+    count
+  end
+
+  # Gets a specific base at an index
+  fn base_at(self, index: Int) -> Option<Char>
+    requires index >= 0 : "Index must be non-negative"
+
+    if index >= self.bases.len()
+      None
+    else
+      Some(self.bases.char_at(index))
+    end
+  end
+
+  # Gets a subsequence (slice) of the sequence
+  fn subsequence(self, start: Int, end: Int) -> Result<Sequence, SequenceError>
+    requires start >= 0 : "Start index must be non-negative"
+    requires end > start : "End must be greater than start"
+    requires end <= self.len() : "End must not exceed sequence length"
+    ensures result.is_ok() implies result.unwrap().len() == end - start
+
+    let sub_bases = self.bases.slice(start, end)
+    Self::new(sub_bases)
+  end
+
+  # Returns the complement of a DNA base
+  fn complement_base(c: Char) -> Char
+    requires c == 'A' or c == 'T' or c == 'C' or c == 'G' or c == 'N'
+    ensures Self::is_valid_dna_base(result)
+
+    match c
+      'A' => 'T'
+      'T' => 'A'
+      'C' => 'G'
+      'G' => 'C'
+      'N' => 'N'
+      _ => 'N'  # Should never reach due to precondition
+    end
+  end
+
+  # Returns the complement of the sequence (A<->T, C<->G)
+  fn complement(self) -> Sequence
+    requires self.seq_type == SequenceType::DNA : "Complement only for DNA"
+    requires self.is_valid()
+    ensures result.is_valid()
+    ensures result.len() == self.len()
+
+    let mut comp_bases = ""
+    let mut i = 0
+
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      let comp = Self::complement_base(c)
+      comp_bases = comp_bases + comp.to_string()
+
+      i = i + 1
+    end
+
+    # Safe to unwrap since we're creating from valid complement bases
+    Sequence {
+      bases: comp_bases,
+      id: self.id,
+      description: self.description,
+      seq_type: self.seq_type
+    }
+  end
+
+  # Returns the reverse of the sequence
+  fn reverse(self) -> Sequence
+    ensures result.len() == self.len()
+    ensures result.is_valid()
+
+    let mut rev_bases = ""
+    let mut i = self.bases.len() - 1
+
+    loop
+      if i < 0
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      rev_bases = rev_bases + c.to_string()
+
+      i = i - 1
+    end
+
+    Sequence {
+      bases: rev_bases,
+      id: self.id,
+      description: self.description,
+      seq_type: self.seq_type
+    }
+  end
+
+  # Returns the reverse complement of the sequence
+  fn reverse_complement(self) -> Sequence
+    requires self.seq_type == SequenceType::DNA : "Reverse complement only for DNA"
+    requires self.is_valid()
+    ensures result.is_valid()
+    ensures result.len() == self.len()
+
+    self.complement().reverse()
+  end
+
+  # Calculates GC content (proportion of G and C bases)
+  fn gc_content(self) -> Float
+    requires self.is_valid()
+    ensures result >= 0.0 and result <= 1.0
+
+    let mut gc_count = 0
+    let mut i = 0
+
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      if c == 'G' or c == 'C'
+        gc_count = gc_count + 1
+      end
+
+      i = i + 1
+    end
+
+    gc_count.to_float() / self.bases.len().to_float()
+  end
+
+  # Calculates AT content (proportion of A and T bases)
+  fn at_content(self) -> Float
+    requires self.is_valid()
+    requires self.seq_type == SequenceType::DNA : "AT content only for DNA"
+    ensures result >= 0.0 and result <= 1.0
+
+    let mut at_count = 0
+    let mut i = 0
+
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      if c == 'A' or c == 'T'
+        at_count = at_count + 1
+      end
+
+      i = i + 1
+    end
+
+    at_count.to_float() / self.bases.len().to_float()
+  end
+
+  # Counts occurrences of each base
+  fn base_counts(self) -> (Int, Int, Int, Int, Int)
+    requires self.is_valid()
+    ensures result.0 + result.1 + result.2 + result.3 + result.4 == self.len()
+
+    let mut a_count = 0
+    let mut c_count = 0
+    let mut g_count = 0
+    let mut t_count = 0
+    let mut n_count = 0
+
+    let mut i = 0
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      match c
+        'A' => a_count = a_count + 1
+        'C' => c_count = c_count + 1
+        'G' => g_count = g_count + 1
+        'T' => t_count = t_count + 1
+        'U' => t_count = t_count + 1  # Count U as T for RNA
+        'N' => n_count = n_count + 1
+        _ => ()
+      end
+
+      i = i + 1
+    end
+
+    (a_count, c_count, g_count, t_count, n_count)
+  end
+
+  # Transcribes DNA to RNA (T -> U)
+  fn transcribe(self) -> Sequence
+    requires self.seq_type == SequenceType::DNA : "Can only transcribe DNA"
+    requires self.is_valid()
+    ensures result.seq_type == SequenceType::RNA
+    ensures result.len() == self.len()
+
+    let mut rna_bases = ""
+    let mut i = 0
+
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let c = self.bases.char_at(i)
+      let rna_base = if c == 'T' then 'U' else c end
+      rna_bases = rna_bases + rna_base.to_string()
+
+      i = i + 1
+    end
+
+    Sequence {
+      bases: rna_bases,
+      id: self.id,
+      description: self.description,
+      seq_type: SequenceType::RNA
+    }
+  end
+
+  # Concatenates two sequences
+  fn concat(self, other: Sequence) -> Sequence
+    requires self.seq_type == other.seq_type : "Cannot concat different sequence types"
+    ensures result.len() == self.len() + other.len()
+
+    Sequence {
+      bases: self.bases + other.bases,
+      id: self.id,
+      description: self.description,
+      seq_type: self.seq_type
+    }
+  end
+
+  # Checks if this sequence contains a motif (substring)
+  fn contains_motif(self, motif: String) -> Bool
+    requires motif.len() > 0 : "Motif cannot be empty"
+    requires motif.len() <= self.len() : "Motif cannot be longer than sequence"
+
+    let motif_upper = motif.to_uppercase()
+
+    let mut i = 0
+    loop
+      if i > self.bases.len() - motif_upper.len()
+        break
+      end
+
+      let sub = self.bases.slice(i, i + motif_upper.len())
+      if sub == motif_upper
+        return true
+      end
+
+      i = i + 1
+    end
+
+    false
+  end
+
+  # Finds all positions where a motif occurs
+  fn find_motif_positions(self, motif: String) -> [Int]
+    requires motif.len() > 0 : "Motif cannot be empty"
+    ensures result.all(|pos| pos >= 0 and pos < self.len())
+
+    let mut positions = []
+    let motif_upper = motif.to_uppercase()
+
+    if motif_upper.len() > self.bases.len()
+      return positions
+    end
+
+    let mut i = 0
+    loop
+      if i > self.bases.len() - motif_upper.len()
+        break
+      end
+
+      let sub = self.bases.slice(i, i + motif_upper.len())
+      if sub == motif_upper
+        positions.push(i)
+      end
+
+      i = i + 1
+    end
+
+    positions
+  end
+
+  # Returns a string representation
+  fn to_string(self) -> String
+    match self.id
+      Some(id) => ">" + id + "\n" + self.bases
+      None => self.bases
+    end
+  end
+
+  # Returns the sequence in FASTA format
+  fn to_fasta(self) -> String
+    let header = match self.id
+      Some(id) => match self.description
+        Some(desc) => ">" + id + " " + desc
+        None => ">" + id
+      end
+      None => ">sequence"
+    end
+
+    # Split sequence into 80-character lines
+    let mut fasta = header + "\n"
+    let mut i = 0
+    loop
+      if i >= self.bases.len()
+        break
+      end
+
+      let end_idx = if i + 80 > self.bases.len()
+        then self.bases.len()
+        else i + 80
+      end
+
+      fasta = fasta + self.bases.slice(i, end_idx) + "\n"
+      i = i + 80
+    end
+
+    fasta
+  end
+end
+
+# Equality implementation for Sequence
+impl Eq for Sequence
+  fn eq(self, other: Sequence) -> Bool
+    self.bases == other.bases and self.seq_type == other.seq_type
+  end
+end

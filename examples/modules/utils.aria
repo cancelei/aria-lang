@@ -1,0 +1,29 @@
+# General utilities module
+
+pub fn max(x: Int, y: Int) -> Int
+  if x > y
+    x
+  else
+    y
+  end
+end
+
+pub fn min(x: Int, y: Int) -> Int
+  if x < y
+    x
+  else
+    y
+  end
+end
+
+pub fn abs(x: Int) -> Int
+  if x < 0
+    0 - x
+  else
+    x
+  end
+end
+
+pub fn clamp(value: Int, low: Int, high: Int) -> Int
+  max(low, min(value, high))
+end

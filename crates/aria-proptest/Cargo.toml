@@ -1,0 +1,13 @@
+[package]
+name = "aria-proptest"
+version = "0.1.0"
+edition = "2021"
+description = "Property-based testing for Aria with generators and shrinking"
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+smol_str = "0.2"
+rustc-hash = "1.1"
+rand = "0.8"
+
+[dev-dependencies]

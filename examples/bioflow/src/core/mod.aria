@@ -1,0 +1,9 @@
+# BioFlow Core Module Index
+# Contains fundamental genomic data types with validation contracts
+
+# Export all core types and functions
+export sequence::{Sequence, SequenceError}
+export quality::{QualityScores, QualityError, PHRED_MIN, PHRED_MAX}
+export read::{Read, ReadError}
+export alignment::{Alignment, AlignmentResult, AlignDirection}
+export stats::{SequenceStats, QualityStats}

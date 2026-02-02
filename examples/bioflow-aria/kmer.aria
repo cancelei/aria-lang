@@ -1,0 +1,163 @@
+# BioFlow Aria - K-mer Counting
+# High-performance k-mer analysis implementation
+
+# Simple k-mer counter using arrays (HashMap not yet available in stdlib)
+struct KMerCounts
+  k: Int
+  kmers: [String]
+  counts: [Int]
+  total: Int
+
+  invariant self.k > 0 : "K must be positive"
+  invariant self.kmers.len() == self.counts.len() : "Arrays must match"
+end
+
+impl KMerCounts
+  fn new(k: Int) -> KMerCounts
+    requires k > 0
+    ensures result.k == k
+    ensures result.total == 0
+
+    KMerCounts {
+      k: k,
+      kmers: [],
+      counts: [],
+      total: 0
+    }
+  end
+
+  fn add(mut self, kmer: String)
+    requires kmer.len() == self.k
+
+    # Find existing k-mer
+    let mut found = false
+    let mut idx = 0
+
+    let mut i = 0
+    loop
+      if i >= self.kmers.len()
+        break
+      end
+
+      if self.kmers[i] == kmer
+        found = true
+        idx = i
+        break
+      end
+
+      i = i + 1
+    end
+
+    # Update or add
+    if found
+      self.counts[idx] = self.counts[idx] + 1
+    else
+      self.kmers.push(kmer)
+      self.counts.push(1)
+    end
+
+    self.total = self.total + 1
+  end
+
+  fn get_count(self, kmer: String) -> Int
+    requires kmer.len() == self.k
+    ensures result >= 0
+
+    let mut i = 0
+    loop
+      if i >= self.kmers.len()
+        break
+      end
+
+      if self.kmers[i] == kmer
+        return self.counts[i]
+      end
+
+      i = i + 1
+    end
+
+    0
+  end
+
+  fn unique_count(self) -> Int
+    ensures result >= 0
+    self.kmers.len()
+  end
+
+  fn total_count(self) -> Int
+    ensures result >= 0
+    self.total
+  end
+end
+
+# Count all k-mers in a sequence
+fn count_kmers(sequence: String, k: Int) -> KMerCounts
+  requires k > 0 : "K must be positive"
+  requires k <= sequence.len() : "K cannot exceed sequence length"
+  ensures result.k == k
+
+  let upper = sequence.to_uppercase()
+  let mut counts = KMerCounts::new(k)
+
+  let mut i = 0
+  loop
+    if i > upper.len() - k
+      break
+    end
+
+    let kmer = upper.slice(i, i + k)
+
+    # Skip k-mers with N
+    if !kmer.contains("N")
+      counts.add(kmer)
+    end
+
+    i = i + 1
+  end
+
+  counts
+end
+
+# Find most frequent k-mer
+fn most_frequent_kmer(sequence: String, k: Int) -> (String, Int)
+  requires k > 0 and k <= sequence.len()
+
+  let counts = count_kmers(sequence, k)
+
+  if counts.unique_count() == 0
+    return ("", 0)
+  end
+
+  let mut max_kmer = counts.kmers[0]
+  let mut max_count = counts.counts[0]
+
+  let mut i = 1
+  loop
+    if i >= counts.unique_count()
+      break
+    end
+
+    if counts.counts[i] > max_count
+      max_kmer = counts.kmers[i]
+      max_count = counts.counts[i]
+    end
+
+    i = i + 1
+  end
+
+  (max_kmer, max_count)
+end
+
+# Calculate k-mer diversity (ratio of unique to total)
+fn kmer_diversity(sequence: String, k: Int) -> Float
+  requires k > 0 and k <= sequence.len()
+  ensures result >= 0.0 and result <= 1.0
+
+  let counts = count_kmers(sequence, k)
+
+  if counts.total_count() == 0
+    0.0
+  else
+    counts.unique_count().to_float() / counts.total_count().to_float()
+  end
+end

@@ -1,0 +1,181 @@
+# BioFlow Aria - Main Benchmark Suite
+# Comprehensive benchmarks comparing Aria performance
+
+import gc_content::{gc_content, base_counts}
+import kmer::{count_kmers, kmer_diversity, most_frequent_kmer}
+import benchmark::{benchmark, benchmark_scaling, print_results, BenchmarkResult}
+
+# Generate test sequence of given size
+fn generate_sequence(size: Int) -> String
+  requires size > 0
+  ensures result.len() == size
+
+  let pattern = "ATGC"
+  let mut seq = ""
+
+  let mut i = 0
+  loop
+    if i >= size
+      break
+    end
+
+    let idx = i % 4
+    seq = seq + pattern.char_at(idx).to_string()
+    i = i + 1
+  end
+
+  seq
+end
+
+# Benchmark GC content calculation
+fn bench_gc_content() -> [BenchmarkResult]
+  println("\n=== GC Content Benchmarks ===\n")
+
+  let sizes = [1000, 5000, 10000, 20000, 50000]
+  let iterations = 1000
+
+  benchmark_scaling(
+    "GC Content",
+    sizes,
+    iterations,
+    |size| {
+      let seq = generate_sequence(size)
+      gc_content(seq)
+    }
+  )
+end
+
+# Benchmark base counting
+fn bench_base_counts() -> [BenchmarkResult]
+  println("\n=== Base Count Benchmarks ===\n")
+
+  let sizes = [1000, 10000, 50000]
+  let iterations = 100
+
+  benchmark_scaling(
+    "Base Counts",
+    sizes,
+    iterations,
+    |size| {
+      let seq = generate_sequence(size)
+      base_counts(seq)
+    }
+  )
+end
+
+# Benchmark k-mer counting
+fn bench_kmer_counting() -> [BenchmarkResult]
+  println("\n=== K-mer Counting Benchmarks ===\n")
+
+  let mut results = []
+
+  # Test different k values with 10k sequence
+  let test_cases = [(10000, 7), (10000, 11), (10000, 21), (10000, 31)]
+  let seq_10k = generate_sequence(10000)
+
+  let mut i = 0
+  loop
+    if i >= test_cases.len()
+      break
+    end
+
+    let (size, k) = test_cases[i]
+    let name = "K-mer (k=" + k.to_string() + ", " + size.to_string() + "bp)"
+
+    let result = benchmark(name, 10, || {
+      count_kmers(seq_10k.clone(), k)
+    })
+
+    results.push(result)
+    i = i + 1
+  end
+
+  # Test scaling with k=21
+  println("\nK-mer Scaling (k=21):\n")
+
+  let sizes = [1000, 5000, 10000, 20000, 50000]
+  let mut j = 0
+  loop
+    if j >= sizes.len()
+      break
+    end
+
+    let size = sizes[j]
+    let seq = generate_sequence(size)
+    let name = "K-mer k=21 (" + size.to_string() + "bp)"
+
+    let result = benchmark(name, 10, || {
+      count_kmers(seq.clone(), 21)
+    })
+
+    results.push(result)
+    j = j + 1
+  end
+
+  results
+end
+
+# Benchmark k-mer diversity
+fn bench_kmer_diversity() -> [BenchmarkResult]
+  println("\n=== K-mer Diversity Benchmarks ===\n")
+
+  let sizes = [1000, 5000, 10000]
+  let k = 11
+
+  benchmark_scaling(
+    "K-mer Diversity (k=11)",
+    sizes,
+    10,
+    |size| {
+      let seq = generate_sequence(size)
+      kmer_diversity(seq, k)
+    }
+  )
+end
+
+# Main benchmark runner
+fn main()
+  println("=" repeat 80)
+  println("BioFlow Aria Benchmark Suite")
+  println("=" repeat 80)
+  println("Language: Aria (compiled)")
+  println("Date: " + std::env::timestamp())
+  println("=" repeat 80)
+
+  # Run all benchmarks
+  let mut all_results = []
+
+  # GC Content
+  let gc_results = bench_gc_content()
+  all_results.extend(gc_results)
+
+  # Base Counts
+  let base_results = bench_base_counts()
+  all_results.extend(base_results)
+
+  # K-mer Counting
+  let kmer_results = bench_kmer_counting()
+  all_results.extend(kmer_results)
+
+  # K-mer Diversity
+  let diversity_results = bench_kmer_diversity()
+  all_results.extend(diversity_results)
+
+  # Print summary
+  println("\n\n")
+  print_results(all_results)
+
+  # Print comparison with other languages
+  println("\n=== Cross-Language Comparison ===\n")
+  println("Comparing Aria vs Go vs Rust vs Python")
+  println("")
+  println("| Operation | Aria | Go | Rust | Python | Aria vs Python |")
+  println("|-----------|------|-----|------|--------|----------------|")
+  println("| GC Content 20kb | ? | 0.01ms | 0.03ms | 0.29ms | ?x |")
+  println("| K-mer k=21 20kb | ? | 0.03ms | 0.37ms | 6.09ms | ?x |")
+  println("")
+  println("Note: Run this benchmark to fill in Aria's actual numbers!")
+  println("")
+
+  0
+end

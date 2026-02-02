@@ -1,0 +1,220 @@
+# Aria Standard Library - Core Module
+# Core types and functionality
+
+# Re-export core types
+export Option, Some, None from "./option.aria"
+export Result, Ok, Err from "./result.aria"
+
+# Import and re-export core modules
+import "./string.aria" as str
+import "./array.aria" as arr
+
+# Re-export commonly used functions
+export str::*
+export arr::*
+
+# Core type aliases
+type Int = i64
+type Float = f64
+type Bool = bool
+type String = string
+type Char = char
+type Bytes = [u8]
+
+# Core utility functions
+
+# Panic with a message
+fn panic(message: String) -> !
+  __builtin_panic(message)
+end
+
+# Assert a condition is true
+fn assert(condition: Bool, message: String)
+  if !condition
+    panic(message)
+  end
+end
+
+# Assert two values are equal
+fn assert_eq<T>(left: T, right: T, message: String)
+  if left != right
+    panic(message)
+  end
+end
+
+# Assert two values are not equal
+fn assert_ne<T>(left: T, right: T, message: String)
+  if left == right
+    panic(message)
+  end
+end
+
+# Unreachable code marker
+fn unreachable() -> !
+  panic("entered unreachable code")
+end
+
+# TODO marker for unimplemented code
+fn todo(message: String) -> !
+  panic("not yet implemented: " + message)
+end
+
+# Unimplemented marker
+fn unimplemented() -> !
+  panic("unimplemented")
+end
+
+# Identity function
+fn id<T>(x: T) -> T
+  x
+end
+
+# Const function - always returns the same value
+fn const<T, U>(x: T) -> Fn(U) -> T
+  fn(y: U) -> x
+end
+
+# Compose two functions
+fn compose<A, B, C>(f: Fn(B) -> C, g: Fn(A) -> B) -> Fn(A) -> C
+  fn(x: A) -> f(g(x))
+end
+
+# Flip function arguments
+fn flip<A, B, C>(f: Fn(A, B) -> C) -> Fn(B, A) -> C
+  fn(b: B, a: A) -> f(a, b)
+end
+
+# Apply function to value
+fn apply<A, B>(f: Fn(A) -> B, x: A) -> B
+  f(x)
+end
+
+# Clone a value (for types that support cloning)
+fn clone<T>(x: T) -> T
+  x.clone()
+end
+
+# Convert value to string
+fn to_string<T>(value: T) -> String
+  __builtin_to_string(value)
+end
+
+# Compare two values
+fn compare<T>(a: T, b: T) -> Int
+  if a < b
+    -1
+  else if a > b
+    1
+  else
+    0
+  end
+end
+
+# Get minimum of two values
+fn min<T>(a: T, b: T) -> T
+  if a < b { a } else { b }
+end
+
+# Get maximum of two values
+fn max<T>(a: T, b: T) -> T
+  if a > b { a } else { b }
+end
+
+# Clamp value between min and max
+fn clamp<T>(value: T, min_val: T, max_val: T) -> T
+  if value < min_val
+    min_val
+  else if value > max_val
+    max_val
+  else
+    value
+  end
+end
+
+# Swap two values
+fn swap<T>(mut a: T, mut b: T)
+  let temp = a
+  a = b
+  b = temp
+end
+
+# Default trait - get default value for a type
+trait Default
+  fn default() -> Self
+end
+
+# Implement Default for common types
+impl Default for Int
+  fn default() -> Int
+    0
+  end
+end
+
+impl Default for Float
+  fn default() -> Float
+    0.0
+  end
+end
+
+impl Default for Bool
+  fn default() -> Bool
+    false
+  end
+end
+
+impl Default for String
+  fn default() -> String
+    ""
+  end
+end
+
+impl Default for [T]
+  fn default() -> [T]
+    []
+  end
+end
+
+# Clone trait - create a copy of a value
+trait Clone
+  fn clone(self) -> Self
+end
+
+# PartialEq trait - partial equality comparison
+trait PartialEq
+  fn eq(self, other: Self) -> Bool
+  fn ne(self, other: Self) -> Bool
+    !self.eq(other)
+  end
+end
+
+# Eq trait - full equality (reflexive, symmetric, transitive)
+trait Eq: PartialEq {}
+
+# PartialOrd trait - partial ordering
+trait PartialOrd: PartialEq
+  fn lt(self, other: Self) -> Bool
+  fn le(self, other: Self) -> Bool
+    self.lt(other) || self.eq(other)
+  end
+  fn gt(self, other: Self) -> Bool
+    !self.le(other)
+  end
+  fn ge(self, other: Self) -> Bool
+    !self.lt(other)
+  end
+end
+
+# Ord trait - total ordering
+trait Ord: Eq + PartialOrd
+  fn cmp(self, other: Self) -> Int
+end
+
+# Display trait - format for user-facing output
+trait Display
+  fn fmt(self) -> String
+end
+
+# Debug trait - format for debugging output
+trait Debug
+  fn debug_fmt(self) -> String
+end

@@ -1,0 +1,47 @@
+BioFlow Go Benchmark Results
+============================
+Date: Sat Jan 31 03:04:53 AM -03 2026
+Go version: go version go1.25.6 linux/amd64
+
+=== Sequence Package ===
+goos: linux
+goarch: amd64
+pkg: github.com/aria-lang/bioflow-go/internal/sequence
+cpu: Intel(R) Core(TM) Ultra 7 258V
+BenchmarkNew-8                 	 8121897	       163.6 ns/op	      64 B/op	       1 allocs/op
+BenchmarkGCContent-8           	100000000	        10.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkComplement-8          	 4800327	       259.7 ns/op	     272 B/op	       3 allocs/op
+BenchmarkReverseComplement-8   	 2339856	       519.1 ns/op	     544 B/op	       6 allocs/op
+PASS
+ok  	github.com/aria-lang/bioflow-go/internal/sequence	6.876s
+
+=== K-mer Package ===
+goos: linux
+goarch: amd64
+pkg: github.com/aria-lang/bioflow-go/internal/kmer
+cpu: Intel(R) Core(TM) Ultra 7 258V
+BenchmarkCountKMers-8        	 1000000	      1430 ns/op	     280 B/op	       3 allocs/op
+BenchmarkJaccardDistance-8   	  364202	      3527 ns/op	     560 B/op	       6 allocs/op
+PASS
+ok  	github.com/aria-lang/bioflow-go/internal/kmer	3.653s
+
+=== Alignment Package ===
+goos: linux
+goarch: amd64
+pkg: github.com/aria-lang/bioflow-go/internal/alignment
+cpu: Intel(R) Core(TM) Ultra 7 258V
+BenchmarkSmithWaterman-8        	     158	   7672877 ns/op	16466526 B/op	    2027 allocs/op
+BenchmarkNeedlemanWunsch-8      	     160	   9111838 ns/op	16466526 B/op	    2027 allocs/op
+BenchmarkAlignmentScoreOnly-8   	     386	   3006073 ns/op	   16384 B/op	       2 allocs/op
+PASS
+ok  	github.com/aria-lang/bioflow-go/internal/alignment	5.689s
+
+=== Stats Package ===
+goos: linux
+goarch: amd64
+pkg: github.com/aria-lang/bioflow-go/internal/stats
+cpu: Intel(R) Core(TM) Ultra 7 258V
+BenchmarkFromSequences-8   	   12721	     88724 ns/op	    2808 B/op	       6 allocs/op
+PASS
+ok  	github.com/aria-lang/bioflow-go/internal/stats	1.754s
+

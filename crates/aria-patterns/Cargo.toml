@@ -1,0 +1,13 @@
+[package]
+name = "aria-patterns"
+version = "0.1.0"
+edition = "2021"
+description = "Pattern matching exhaustiveness checking and optimization for Aria"
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+aria-lexer = { path = "../aria-lexer" }
+smol_str = "0.2"
+rustc-hash = "1.1"
+
+[dev-dependencies]

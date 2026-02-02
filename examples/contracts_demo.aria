@@ -1,0 +1,66 @@
+# Contract Verification Demo
+# This example showcases Aria's compile-time contract checking
+
+struct Sequence
+  bases: String
+end
+
+fn gc_content(self: Sequence) -> Float
+  requires self.bases.length > 0
+  ensures result >= 0.0 and result <= 1.0
+
+  let gc_count = 0
+  let i = 0
+
+  # Count G and C bases
+  while i < self.bases.length
+    let base = self.bases[i]
+    if base == 'G' or base == 'C'
+      gc_count = gc_count + 1
+    end
+    i = i + 1
+  end
+
+  # Return GC ratio
+  gc_count.to_float() / self.bases.length.to_float()
+end
+
+fn divide(a: Int, b: Int) -> Int
+  requires b != 0
+  ensures result * b == a or result * b == a - (a % b)
+
+  a / b
+end
+
+fn safe_array_access(arr: [Int], index: Int) -> Int
+  requires index >= 0 and index < arr.length
+  ensures result == arr[index]
+
+  arr[index]
+end
+
+fn main()
+  # Create a sequence
+  let seq = Sequence { bases: "ATCGATCG" }
+
+  # This should work - sequence is valid
+  let gc = seq.gc_content()
+  println("GC content: " + gc.to_string())
+
+  # This should work - b is non-zero
+  let result = divide(10, 2)
+  println("10 / 2 = " + result.to_string())
+
+  # This would fail at runtime with contract checking:
+  # let bad = divide(10, 0)  # Precondition violated: b != 0
+
+  # Safe array access
+  let numbers = [1, 2, 3, 4, 5]
+  let value = safe_array_access(numbers, 2)
+  println("Array[2] = " + value.to_string())
+
+  # This would fail at runtime:
+  # let bad = safe_array_access(numbers, 10)  # Precondition violated
+
+  println("All contracts verified!")
+end

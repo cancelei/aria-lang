@@ -1,0 +1,34 @@
+[package]
+name = "aria-compiler"
+description = "The Aria programming language compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "aria_compiler"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aria"
+path = "src/main.rs"
+
+[dependencies]
+aria-lexer = { path = "../aria-lexer" }
+aria-ast = { path = "../aria-ast" }
+aria-parser = { path = "../aria-parser" }
+aria-types = { path = "../aria-types" }
+aria-interpreter = { path = "../aria-interpreter" }
+aria-mir = { path = "../aria-mir" }
+aria-codegen = { path = "../aria-codegen" }
+aria-modules = { path = "../aria-modules" }
+aria-diagnostics = { path = "../aria-diagnostics" }
+miette = { workspace = true }
+ariadne = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+dirs = "5.0"
+strsim = "0.11"  # For "did you mean" suggestions
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+insta = { workspace = true }

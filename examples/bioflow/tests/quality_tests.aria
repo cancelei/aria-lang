@@ -1,0 +1,569 @@
+# BioFlow - Quality and Filtering Tests
+# Comprehensive tests for quality scores and read filtering
+
+import core::quality::{
+  QualityScores, QualityError, QualityCategory,
+  PHRED_MIN, PHRED_MAX, Q_HIGH, Q_MEDIUM
+}
+import core::read::{Read, ReadError}
+import algorithms::quality_filter::{
+  filter_by_quality, filter_by_length, filter_by_gc,
+  filter_by_ambiguous, filter_reads, FilterConfig, FilterResult
+}
+
+fn main() -> Int
+  println("Running Quality and Filter Tests")
+  println("================================\n")
+
+  let mut passed = 0
+  let mut failed = 0
+
+  if test_quality_creation()
+    passed = passed + 1
+    println("[PASS] test_quality_creation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_quality_creation")
+  end
+
+  if test_phred33_encoding()
+    passed = passed + 1
+    println("[PASS] test_phred33_encoding")
+  else
+    failed = failed + 1
+    println("[FAIL] test_phred33_encoding")
+  end
+
+  if test_quality_statistics()
+    passed = passed + 1
+    println("[PASS] test_quality_statistics")
+  else
+    failed = failed + 1
+    println("[FAIL] test_quality_statistics")
+  end
+
+  if test_quality_categorization()
+    passed = passed + 1
+    println("[PASS] test_quality_categorization")
+  else
+    failed = failed + 1
+    println("[FAIL] test_quality_categorization")
+  end
+
+  if test_read_creation()
+    passed = passed + 1
+    println("[PASS] test_read_creation")
+  else
+    failed = failed + 1
+    println("[FAIL] test_read_creation")
+  end
+
+  if test_read_trimming()
+    passed = passed + 1
+    println("[PASS] test_read_trimming")
+  else
+    failed = failed + 1
+    println("[FAIL] test_read_trimming")
+  end
+
+  if test_filter_by_quality()
+    passed = passed + 1
+    println("[PASS] test_filter_by_quality")
+  else
+    failed = failed + 1
+    println("[FAIL] test_filter_by_quality")
+  end
+
+  if test_filter_by_length()
+    passed = passed + 1
+    println("[PASS] test_filter_by_length")
+  else
+    failed = failed + 1
+    println("[FAIL] test_filter_by_length")
+  end
+
+  if test_filter_by_gc()
+    passed = passed + 1
+    println("[PASS] test_filter_by_gc")
+  else
+    failed = failed + 1
+    println("[FAIL] test_filter_by_gc")
+  end
+
+  if test_filter_config()
+    passed = passed + 1
+    println("[PASS] test_filter_config")
+  else
+    failed = failed + 1
+    println("[FAIL] test_filter_config")
+  end
+
+  if test_combined_filtering()
+    passed = passed + 1
+    println("[PASS] test_combined_filtering")
+  else
+    failed = failed + 1
+    println("[FAIL] test_combined_filtering")
+  end
+
+  println("\n================================")
+  println("Passed: " + passed.to_string())
+  println("Failed: " + failed.to_string())
+
+  if failed > 0 then 1 else 0 end
+end
+
+# Test: Quality Score Creation
+fn test_quality_creation() -> Bool
+  # Valid scores
+  let scores = [20, 25, 30, 35, 40]
+  let result = QualityScores::new(scores)
+  if !result.is_ok()
+    return false
+  end
+
+  let q = result.unwrap()
+  if q.len() != 5
+    return false
+  end
+
+  # Out of range scores should fail
+  let invalid = QualityScores::new([20, 50, 30])  # 50 > 40
+  if invalid.is_ok()
+    return false
+  end
+
+  let invalid2 = QualityScores::new([20, -1, 30])  # -1 < 0
+  if invalid2.is_ok()
+    return false
+  end
+
+  true
+end
+
+# Test: Phred+33 Encoding
+fn test_phred33_encoding() -> Bool
+  # '!' = 33 -> Q0
+  # 'I' = 73 -> Q40
+  let encoded = "IIIIIIIII"  # All Q40
+  let result = QualityScores::from_phred33(encoded)
+  if !result.is_ok()
+    return false
+  end
+
+  let q = result.unwrap()
+  if q.len() != 9
+    return false
+  end
+
+  # All scores should be 40
+  let mut i = 0
+  loop
+    if i >= q.len()
+      break
+    end
+    match q.score_at(i)
+      Some(score) => if score != 40 then return false end
+      None => return false
+    end
+    i = i + 1
+  end
+
+  # Test encoding back
+  let re_encoded = q.to_phred33()
+  if re_encoded != encoded
+    return false
+  end
+
+  # '!' = Q0
+  let low_qual = "!!!!!!!!"
+  let low_result = QualityScores::from_phred33(low_qual)
+  if !low_result.is_ok()
+    return false
+  end
+
+  let low_q = low_result.unwrap()
+  if low_q.average() != 0.0
+    return false
+  end
+
+  true
+end
+
+# Test: Quality Statistics
+fn test_quality_statistics() -> Bool
+  let scores = [10, 20, 30, 40, 30, 20, 10]
+  let q = QualityScores::new(scores).unwrap()
+
+  # Average
+  let avg = q.average()
+  let expected_avg = (10 + 20 + 30 + 40 + 30 + 20 + 10).to_float() / 7.0
+  if !approx_eq(avg, expected_avg, 0.001)
+    return false
+  end
+
+  # Min
+  if q.min() != 10
+    return false
+  end
+
+  # Max
+  if q.max() != 40
+    return false
+  end
+
+  # Median (sorted: 10, 10, 20, 20, 30, 30, 40 -> median is 20)
+  let median = q.median()
+  if median != 20
+    return false
+  end
+
+  # Count above
+  if q.count_above(25) != 3  # 30, 40, 30
+    return false
+  end
+
+  # Count at or above
+  if q.count_at_or_above(20) != 5  # 20, 30, 40, 30, 20
+    return false
+  end
+
+  true
+end
+
+# Test: Quality Categorization
+fn test_quality_categorization() -> Bool
+  # Excellent quality (Q >= 40)
+  let excellent = QualityScores::new([40, 40, 40, 40, 40]).unwrap()
+  if excellent.categorize() != QualityCategory::Excellent
+    return false
+  end
+
+  # High quality (Q30-39)
+  let high = QualityScores::new([35, 35, 35, 35, 35]).unwrap()
+  if high.categorize() != QualityCategory::High
+    return false
+  end
+
+  # Medium quality (Q20-29)
+  let medium = QualityScores::new([25, 25, 25, 25, 25]).unwrap()
+  if medium.categorize() != QualityCategory::Medium
+    return false
+  end
+
+  # Low quality (Q10-19)
+  let low = QualityScores::new([15, 15, 15, 15, 15]).unwrap()
+  if low.categorize() != QualityCategory::Low
+    return false
+  end
+
+  # Poor quality (Q < 10)
+  let poor = QualityScores::new([5, 5, 5, 5, 5]).unwrap()
+  if poor.categorize() != QualityCategory::Poor
+    return false
+  end
+
+  true
+end
+
+# Test: Read Creation
+fn test_read_creation() -> Bool
+  # Valid read
+  let result = Read::from_strings(
+    "read_001",
+    "ATGCATGC",
+    "IIIIIIII"  # Q40
+  )
+  if !result.is_ok()
+    return false
+  end
+
+  let read = result.unwrap()
+  if read.len() != 8
+    return false
+  end
+  if read.id != "read_001"
+    return false
+  end
+
+  # Length mismatch should fail
+  let invalid = Read::from_strings(
+    "read_002",
+    "ATGCATGC",
+    "IIII"  # Only 4 quality scores
+  )
+  if invalid.is_ok()
+    return false
+  end
+
+  true
+end
+
+# Test: Read Trimming
+fn test_read_trimming() -> Bool
+  # Create read with varying quality
+  # High quality in middle, low on ends
+  let read = Read::from_strings(
+    "read_001",
+    "AAAAAATGCATGCAAAAAA",
+    "!!!!!IIIIIIIII!!!!!"  # Q0 on ends, Q40 in middle
+  ).unwrap()
+
+  # Trim at Q20
+  let trimmed_result = read.trim_quality(20)
+  if !trimmed_result.is_ok()
+    return false
+  end
+
+  let trimmed = trimmed_result.unwrap()
+
+  # Trimmed read should be shorter
+  if trimmed.len() >= read.len()
+    return false
+  end
+
+  # Trimmed read should have higher average quality
+  if trimmed.avg_quality() <= read.avg_quality()
+    return false
+  end
+
+  true
+end
+
+# Test: Filter by Quality
+fn test_filter_by_quality() -> Bool
+  let mut reads = []
+
+  # High quality read
+  reads.push(Read::from_strings(
+    "high_qual",
+    "ATGCATGC",
+    "IIIIIIII"  # Q40
+  ).unwrap())
+
+  # Low quality read
+  reads.push(Read::from_strings(
+    "low_qual",
+    "ATGCATGC",
+    "!!!!!!!!"  # Q0
+  ).unwrap())
+
+  # Medium quality read
+  reads.push(Read::from_strings(
+    "med_qual",
+    "ATGCATGC",
+    "55555555"  # Q20
+  ).unwrap())
+
+  # Filter at Q30
+  let filtered = filter_by_quality(reads, 30)
+
+  # Only high quality should pass
+  if filtered.len() != 1
+    return false
+  end
+
+  # Filter at Q10
+  let filtered2 = filter_by_quality(reads, 10)
+
+  # High and medium should pass
+  if filtered2.len() != 2
+    return false
+  end
+
+  true
+end
+
+# Test: Filter by Length
+fn test_filter_by_length() -> Bool
+  let mut reads = []
+
+  reads.push(Read::from_strings(
+    "short",
+    "ATGC",
+    "IIII"
+  ).unwrap())
+
+  reads.push(Read::from_strings(
+    "medium",
+    "ATGCATGCATGC",
+    "IIIIIIIIIIII"
+  ).unwrap())
+
+  reads.push(Read::from_strings(
+    "long",
+    "ATGCATGCATGCATGCATGC",
+    "IIIIIIIIIIIIIIIIIIII"
+  ).unwrap())
+
+  # Filter min length 10
+  let filtered = filter_by_length(reads, 10)
+
+  # Medium and long should pass
+  if filtered.len() != 2
+    return false
+  end
+
+  # All should be >= 10
+  let mut i = 0
+  loop
+    if i >= filtered.len()
+      break
+    end
+    if filtered[i].len() < 10
+      return false
+    end
+    i = i + 1
+  end
+
+  true
+end
+
+# Test: Filter by GC Content
+fn test_filter_by_gc() -> Bool
+  let mut reads = []
+
+  # Low GC (all A/T)
+  reads.push(Read::from_strings(
+    "low_gc",
+    "ATATATATAT",
+    "IIIIIIIIII"
+  ).unwrap())
+
+  # High GC (all G/C)
+  reads.push(Read::from_strings(
+    "high_gc",
+    "GCGCGCGCGC",
+    "IIIIIIIIII"
+  ).unwrap())
+
+  # Balanced GC (50%)
+  reads.push(Read::from_strings(
+    "balanced",
+    "ATGCATGCAT",
+    "IIIIIIIIII"
+  ).unwrap())
+
+  # Filter for moderate GC (30-70%)
+  let filtered = filter_by_gc(reads, 0.3, 0.7)
+
+  # Only balanced should pass
+  if filtered.len() != 1
+    return false
+  end
+
+  if filtered[0].id != "balanced"
+    return false
+  end
+
+  true
+end
+
+# Test: Filter Configuration
+fn test_filter_config() -> Bool
+  # Default config
+  let default = FilterConfig::default()
+  if default.min_quality != Q_MEDIUM
+    return false
+  end
+
+  # Strict config
+  let strict = FilterConfig::strict()
+  if strict.min_quality != Q_HIGH
+    return false
+  end
+  if strict.min_length != 100
+    return false
+  end
+
+  # Builder pattern
+  let custom = FilterConfig::default()
+    .with_min_quality(25)
+    .with_min_length(75)
+    .with_gc_range(0.4, 0.6)
+
+  if custom.min_quality != 25
+    return false
+  end
+  if custom.min_length != 75
+    return false
+  end
+  if !approx_eq(custom.min_gc, 0.4, 0.001)
+    return false
+  end
+  if !approx_eq(custom.max_gc, 0.6, 0.001)
+    return false
+  end
+
+  true
+end
+
+# Test: Combined Filtering
+fn test_combined_filtering() -> Bool
+  let mut reads = []
+
+  # Good read - passes all
+  reads.push(Read::from_strings(
+    "good",
+    "ATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGC",
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+  ).unwrap())
+
+  # Low quality
+  reads.push(Read::from_strings(
+    "low_qual",
+    "ATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGC",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  ).unwrap())
+
+  # Too short
+  reads.push(Read::from_strings(
+    "short",
+    "ATGC",
+    "IIII"
+  ).unwrap())
+
+  # With ambiguous bases
+  reads.push(Read::from_strings(
+    "ambiguous",
+    "NNNNATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCATGCNNNN",
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+  ).unwrap())
+
+  let config = FilterConfig::default()
+    .with_min_quality(20)
+    .with_min_length(10)
+    .with_max_ambiguous(0.05)
+
+  let result = filter_reads(reads, config)
+
+  # Only "good" should pass
+  if result.total_passed != 1
+    return false
+  end
+
+  if result.passed[0].id != "good"
+    return false
+  end
+
+  # Check filter result statistics
+  if result.total_input != 4
+    return false
+  end
+
+  if result.total_failed != 3
+    return false
+  end
+
+  # Pass rate should be 25%
+  if !approx_eq(result.pass_rate, 0.25, 0.001)
+    return false
+  end
+
+  true
+end
+
+# Helper: Approximate floating point equality
+fn approx_eq(a: Float, b: Float, epsilon: Float) -> Bool
+  (a - b).abs() < epsilon
+end

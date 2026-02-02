@@ -1,0 +1,617 @@
+# BioFlow - Statistics Types
+# Statistical summaries for sequences and reads
+
+import core::sequence::{Sequence}
+import core::quality::{QualityScores, QualityCategory}
+import core::read::{Read}
+
+# Statistics for a single sequence
+struct SequenceStats
+  length: Int
+  gc_content: Float
+  at_content: Float
+  a_count: Int
+  c_count: Int
+  g_count: Int
+  t_count: Int
+  n_count: Int
+  has_ambiguous: Bool
+
+  # Invariant: counts must sum to length
+  invariant self.a_count + self.c_count + self.g_count +
+            self.t_count + self.n_count == self.length :
+    "Base counts must sum to sequence length"
+
+  # Invariant: GC and AT content must be valid proportions
+  invariant self.gc_content >= 0.0 and self.gc_content <= 1.0
+  invariant self.at_content >= 0.0 and self.at_content <= 1.0
+end
+
+impl SequenceStats
+  # Calculates statistics for a sequence
+  fn from_sequence(seq: Sequence) -> SequenceStats
+    requires seq.is_valid()
+    ensures result.length == seq.len()
+
+    let (a, c, g, t, n) = seq.base_counts()
+
+    SequenceStats {
+      length: seq.len(),
+      gc_content: seq.gc_content(),
+      at_content: (a + t).to_float() / seq.len().to_float(),
+      a_count: a,
+      c_count: c,
+      g_count: g,
+      t_count: t,
+      n_count: n,
+      has_ambiguous: n > 0
+    }
+  end
+
+  # Returns a formatted string representation
+  fn to_string(self) -> String
+    "SequenceStats {\n" +
+    "  length: " + self.length.to_string() + "\n" +
+    "  GC content: " + (self.gc_content * 100.0).to_string() + "%\n" +
+    "  AT content: " + (self.at_content * 100.0).to_string() + "%\n" +
+    "  A: " + self.a_count.to_string() +
+    ", C: " + self.c_count.to_string() +
+    ", G: " + self.g_count.to_string() +
+    ", T: " + self.t_count.to_string() +
+    ", N: " + self.n_count.to_string() + "\n" +
+    "}"
+  end
+end
+
+# Aggregated statistics for multiple sequences
+struct SequenceSetStats
+  count: Int
+  total_bases: Int
+  min_length: Int
+  max_length: Int
+  mean_length: Float
+  median_length: Int
+  mean_gc_content: Float
+  n50: Int           # N50 statistic (length where 50% of bases are in longer sequences)
+  total_ambiguous: Int
+end
+
+impl SequenceSetStats
+  # Calculates statistics for a collection of sequences
+  fn from_sequences(sequences: [Sequence]) -> SequenceSetStats
+    requires sequences.len() > 0 : "Sequence list cannot be empty"
+    ensures result.count == sequences.len()
+
+    let count = sequences.len()
+
+    # Calculate basic stats
+    let mut total_bases = 0
+    let mut min_len = sequences[0].len()
+    let mut max_len = sequences[0].len()
+    let mut gc_sum = 0.0
+    let mut lengths = []
+    let mut total_ambiguous = 0
+
+    let mut i = 0
+    loop
+      if i >= sequences.len()
+        break
+      end
+
+      let seq = sequences[i]
+      let len = seq.len()
+
+      total_bases = total_bases + len
+      lengths.push(len)
+
+      if len < min_len
+        min_len = len
+      end
+      if len > max_len
+        max_len = len
+      end
+
+      gc_sum = gc_sum + seq.gc_content()
+      total_ambiguous = total_ambiguous + seq.count_ambiguous()
+
+      i = i + 1
+    end
+
+    # Sort lengths for median and N50
+    let sorted_lengths = Self::sort_descending(lengths)
+
+    # Calculate median
+    let median_len = if count % 2 == 0
+      then (sorted_lengths[count / 2 - 1] + sorted_lengths[count / 2]) / 2
+      else sorted_lengths[count / 2]
+    end
+
+    # Calculate N50
+    let half_total = total_bases / 2
+    let mut running_sum = 0
+    let mut n50 = sorted_lengths[0]
+
+    let mut j = 0
+    loop
+      if j >= sorted_lengths.len()
+        break
+      end
+
+      running_sum = running_sum + sorted_lengths[j]
+      if running_sum >= half_total
+        n50 = sorted_lengths[j]
+        break
+      end
+
+      j = j + 1
+    end
+
+    SequenceSetStats {
+      count: count,
+      total_bases: total_bases,
+      min_length: min_len,
+      max_length: max_len,
+      mean_length: total_bases.to_float() / count.to_float(),
+      median_length: median_len,
+      mean_gc_content: gc_sum / count.to_float(),
+      n50: n50,
+      total_ambiguous: total_ambiguous
+    }
+  end
+
+  # Helper: sorts array in descending order
+  fn sort_descending(arr: [Int]) -> [Int]
+    ensures result.len() == arr.len()
+
+    let mut sorted = arr.clone()
+    let n = sorted.len()
+
+    let mut i = 0
+    loop
+      if i >= n
+        break
+      end
+
+      let mut j = 0
+      loop
+        if j >= n - i - 1
+          break
+        end
+
+        if sorted[j] < sorted[j + 1]
+          let temp = sorted[j]
+          sorted[j] = sorted[j + 1]
+          sorted[j + 1] = temp
+        end
+
+        j = j + 1
+      end
+
+      i = i + 1
+    end
+
+    sorted
+  end
+
+  fn to_string(self) -> String
+    "SequenceSetStats {\n" +
+    "  count: " + self.count.to_string() + "\n" +
+    "  total_bases: " + self.total_bases.to_string() + "\n" +
+    "  length range: " + self.min_length.to_string() + " - " +
+                         self.max_length.to_string() + "\n" +
+    "  mean length: " + self.mean_length.to_string() + "\n" +
+    "  median length: " + self.median_length.to_string() + "\n" +
+    "  mean GC: " + (self.mean_gc_content * 100.0).to_string() + "%\n" +
+    "  N50: " + self.n50.to_string() + "\n" +
+    "  ambiguous bases: " + self.total_ambiguous.to_string() + "\n" +
+    "}"
+  end
+end
+
+# Statistics for a collection of reads
+struct ReadSetStats
+  count: Int
+  total_bases: Int
+  min_length: Int
+  max_length: Int
+  mean_length: Float
+  mean_quality: Float
+  median_quality: Float
+  high_quality_count: Int
+  quality_distribution: QualityDistribution
+end
+
+impl ReadSetStats
+  # Calculates statistics for a collection of reads
+  fn from_reads(reads: [Read]) -> ReadSetStats
+    requires reads.len() > 0 : "Read list cannot be empty"
+    ensures result.count == reads.len()
+
+    let count = reads.len()
+
+    let mut total_bases = 0
+    let mut min_len = reads[0].len()
+    let mut max_len = reads[0].len()
+    let mut quality_sum = 0.0
+    let mut qualities = []
+    let mut high_quality_count = 0
+
+    let mut i = 0
+    loop
+      if i >= reads.len()
+        break
+      end
+
+      let read = reads[i]
+      let len = read.len()
+
+      total_bases = total_bases + len
+
+      if len < min_len
+        min_len = len
+      end
+      if len > max_len
+        max_len = len
+      end
+
+      let q = read.avg_quality()
+      quality_sum = quality_sum + q
+      qualities.push(q)
+
+      if read.is_high_quality()
+        high_quality_count = high_quality_count + 1
+      end
+
+      i = i + 1
+    end
+
+    # Sort qualities for median
+    let sorted_q = Self::sort_floats(qualities)
+    let median_q = if count % 2 == 0
+      then (sorted_q[count / 2 - 1] + sorted_q[count / 2]) / 2.0
+      else sorted_q[count / 2]
+    end
+
+    # Build quality distribution
+    let distribution = QualityDistribution::from_reads(reads)
+
+    ReadSetStats {
+      count: count,
+      total_bases: total_bases,
+      min_length: min_len,
+      max_length: max_len,
+      mean_length: total_bases.to_float() / count.to_float(),
+      mean_quality: quality_sum / count.to_float(),
+      median_quality: median_q,
+      high_quality_count: high_quality_count,
+      quality_distribution: distribution
+    }
+  end
+
+  # Helper: sorts float array
+  fn sort_floats(arr: [Float]) -> [Float]
+    ensures result.len() == arr.len()
+
+    let mut sorted = arr.clone()
+    let n = sorted.len()
+
+    let mut i = 0
+    loop
+      if i >= n
+        break
+      end
+
+      let mut j = 0
+      loop
+        if j >= n - i - 1
+          break
+        end
+
+        if sorted[j] > sorted[j + 1]
+          let temp = sorted[j]
+          sorted[j] = sorted[j + 1]
+          sorted[j + 1] = temp
+        end
+
+        j = j + 1
+      end
+
+      i = i + 1
+    end
+
+    sorted
+  end
+
+  # Returns proportion of high-quality reads
+  fn high_quality_ratio(self) -> Float
+    ensures result >= 0.0 and result <= 1.0
+
+    self.high_quality_count.to_float() / self.count.to_float()
+  end
+
+  fn to_string(self) -> String
+    "ReadSetStats {\n" +
+    "  count: " + self.count.to_string() + "\n" +
+    "  total_bases: " + self.total_bases.to_string() + "\n" +
+    "  length range: " + self.min_length.to_string() + " - " +
+                         self.max_length.to_string() + "\n" +
+    "  mean length: " + self.mean_length.to_string() + "\n" +
+    "  mean quality: " + self.mean_quality.to_string() + "\n" +
+    "  median quality: " + self.median_quality.to_string() + "\n" +
+    "  high quality reads: " + self.high_quality_count.to_string() +
+    " (" + (self.high_quality_ratio() * 100.0).to_string() + "%)\n" +
+    "}"
+  end
+end
+
+# Quality score distribution
+struct QualityDistribution
+  # Counts per quality category
+  poor_count: Int
+  low_count: Int
+  medium_count: Int
+  high_count: Int
+  excellent_count: Int
+  total: Int
+end
+
+impl QualityDistribution
+  # Creates a distribution from reads
+  fn from_reads(reads: [Read]) -> QualityDistribution
+    requires reads.len() > 0
+
+    let mut poor = 0
+    let mut low = 0
+    let mut medium = 0
+    let mut high = 0
+    let mut excellent = 0
+
+    let mut i = 0
+    loop
+      if i >= reads.len()
+        break
+      end
+
+      let category = reads[i].quality.categorize()
+      match category
+        QualityCategory::Poor => poor = poor + 1
+        QualityCategory::Low => low = low + 1
+        QualityCategory::Medium => medium = medium + 1
+        QualityCategory::High => high = high + 1
+        QualityCategory::Excellent => excellent = excellent + 1
+      end
+
+      i = i + 1
+    end
+
+    QualityDistribution {
+      poor_count: poor,
+      low_count: low,
+      medium_count: medium,
+      high_count: high,
+      excellent_count: excellent,
+      total: reads.len()
+    }
+  end
+
+  # Returns proportion of reads at or above medium quality
+  fn acceptable_ratio(self) -> Float
+    ensures result >= 0.0 and result <= 1.0
+
+    let acceptable = self.medium_count + self.high_count + self.excellent_count
+    acceptable.to_float() / self.total.to_float()
+  end
+
+  fn to_string(self) -> String
+    "QualityDistribution {\n" +
+    "  Poor (Q<10): " + self.poor_count.to_string() + "\n" +
+    "  Low (Q10-20): " + self.low_count.to_string() + "\n" +
+    "  Medium (Q20-30): " + self.medium_count.to_string() + "\n" +
+    "  High (Q30-40): " + self.high_count.to_string() + "\n" +
+    "  Excellent (Q40): " + self.excellent_count.to_string() + "\n" +
+    "}"
+  end
+end
+
+# GC content histogram with bins
+struct GCHistogram
+  bins: [Int]         # Counts for each 5% bin (0-5%, 5-10%, ..., 95-100%)
+  bin_size: Float
+  num_bins: Int
+end
+
+impl GCHistogram
+  # Creates a GC content histogram from sequences
+  fn from_sequences(sequences: [Sequence]) -> GCHistogram
+    requires sequences.len() > 0
+
+    let num_bins = 20  # 5% bins
+    let bin_size = 0.05
+    let mut bins = []
+
+    # Initialize bins
+    let mut b = 0
+    loop
+      if b >= num_bins
+        break
+      end
+      bins.push(0)
+      b = b + 1
+    end
+
+    # Count sequences per bin
+    let mut i = 0
+    loop
+      if i >= sequences.len()
+        break
+      end
+
+      let gc = sequences[i].gc_content()
+      let bin_index = (gc / bin_size).floor().to_int()
+
+      # Handle edge case where gc = 1.0
+      let adjusted_index = if bin_index >= num_bins
+        then num_bins - 1
+        else bin_index
+      end
+
+      bins[adjusted_index] = bins[adjusted_index] + 1
+
+      i = i + 1
+    end
+
+    GCHistogram {
+      bins: bins,
+      bin_size: bin_size,
+      num_bins: num_bins
+    }
+  end
+
+  # Gets count for a specific bin
+  fn count_at(self, bin: Int) -> Int
+    requires bin >= 0 and bin < self.num_bins
+    self.bins[bin]
+  end
+
+  # Returns the most common GC content range
+  fn mode_bin(self) -> (Float, Float)
+    let mut max_count = 0
+    let mut max_bin = 0
+
+    let mut i = 0
+    loop
+      if i >= self.num_bins
+        break
+      end
+
+      if self.bins[i] > max_count
+        max_count = self.bins[i]
+        max_bin = i
+      end
+
+      i = i + 1
+    end
+
+    let start = max_bin.to_float() * self.bin_size
+    let end_val = start + self.bin_size
+    (start, end_val)
+  end
+
+  fn to_string(self) -> String
+    let mut output = "GC Content Histogram:\n"
+
+    let mut i = 0
+    loop
+      if i >= self.num_bins
+        break
+      end
+
+      let start = (i.to_float() * self.bin_size * 100.0).to_int()
+      let end_val = start + 5
+      let count = self.bins[i]
+
+      # Create bar
+      let mut bar = ""
+      let bar_len = count / 10  # Scale down for display
+      let mut j = 0
+      loop
+        if j >= bar_len
+          break
+        end
+        bar = bar + "#"
+        j = j + 1
+      end
+
+      output = output + start.to_string() + "-" + end_val.to_string() + "%: " +
+               bar + " (" + count.to_string() + ")\n"
+
+      i = i + 1
+    end
+
+    output
+  end
+end
+
+# Length histogram
+struct LengthHistogram
+  bins: [Int]
+  min_length: Int
+  max_length: Int
+  bin_width: Int
+  num_bins: Int
+end
+
+impl LengthHistogram
+  # Creates a length histogram from sequences
+  fn from_sequences(sequences: [Sequence], num_bins: Int) -> LengthHistogram
+    requires sequences.len() > 0
+    requires num_bins > 0
+
+    # Find min and max lengths
+    let mut min_len = sequences[0].len()
+    let mut max_len = sequences[0].len()
+
+    let mut i = 0
+    loop
+      if i >= sequences.len()
+        break
+      end
+
+      let len = sequences[i].len()
+      if len < min_len
+        min_len = len
+      end
+      if len > max_len
+        max_len = len
+      end
+
+      i = i + 1
+    end
+
+    # Calculate bin width
+    let range = max_len - min_len
+    let bin_width = if range == 0
+      then 1
+      else (range / num_bins) + 1
+    end
+
+    # Initialize bins
+    let mut bins = []
+    let mut b = 0
+    loop
+      if b >= num_bins
+        break
+      end
+      bins.push(0)
+      b = b + 1
+    end
+
+    # Count sequences per bin
+    let mut j = 0
+    loop
+      if j >= sequences.len()
+        break
+      end
+
+      let len = sequences[j].len()
+      let bin_index = (len - min_len) / bin_width
+
+      let adjusted_index = if bin_index >= num_bins
+        then num_bins - 1
+        else bin_index
+      end
+
+      bins[adjusted_index] = bins[adjusted_index] + 1
+
+      j = j + 1
+    end
+
+    LengthHistogram {
+      bins: bins,
+      min_length: min_len,
+      max_length: max_len,
+      bin_width: bin_width,
+      num_bins: num_bins
+    }
+  end
+end

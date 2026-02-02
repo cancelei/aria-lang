@@ -1,0 +1,24 @@
+[package]
+name = "aria-python-bridge"
+description = "Python interoperability bridge for calling Python from Aria"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Error handling
+thiserror.workspace = true
+
+# Shared workspace dependencies
+smol_str.workspace = true
+indexmap.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+
+[features]
+default = []
+# Feature flag for when real pyo3 integration is needed
+# pyo3 = []

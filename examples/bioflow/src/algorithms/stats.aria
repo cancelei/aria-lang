@@ -1,0 +1,570 @@
+# BioFlow - Statistical Algorithms
+# Sequence statistics and analysis functions with contracts
+
+import core::sequence::{Sequence, SequenceType}
+
+# Base frequencies as a structured result
+struct BaseFrequencies
+  a_freq: Float
+  c_freq: Float
+  g_freq: Float
+  t_freq: Float
+  n_freq: Float
+  total_bases: Int
+
+  # Invariant: frequencies must sum to 1 (with floating point tolerance)
+  invariant (self.a_freq + self.c_freq + self.g_freq +
+             self.t_freq + self.n_freq - 1.0).abs() < 0.0001 :
+    "Base frequencies must sum to 1"
+
+  # Invariant: all frequencies must be non-negative
+  invariant self.a_freq >= 0.0 and self.c_freq >= 0.0 and
+            self.g_freq >= 0.0 and self.t_freq >= 0.0 and self.n_freq >= 0.0
+end
+
+impl BaseFrequencies
+  fn to_string(self) -> String
+    "BaseFrequencies { A: " + (self.a_freq * 100.0).to_string() + "%, " +
+    "C: " + (self.c_freq * 100.0).to_string() + "%, " +
+    "G: " + (self.g_freq * 100.0).to_string() + "%, " +
+    "T: " + (self.t_freq * 100.0).to_string() + "%, " +
+    "N: " + (self.n_freq * 100.0).to_string() + "% }"
+  end
+end
+
+# Dinucleotide frequencies
+struct DinucleotideFreqs
+  # Store as a map of dinucleotide -> frequency
+  # Order: AA, AC, AG, AT, CA, CC, CG, CT, GA, GC, GG, GT, TA, TC, TG, TT
+  freqs: [Float]
+  total_dinucleotides: Int
+
+  invariant self.freqs.len() == 16 : "Must have 16 dinucleotide frequencies"
+end
+
+impl DinucleotideFreqs
+  # Gets frequency for a specific dinucleotide
+  fn get(self, dinuc: String) -> Option<Float>
+    requires dinuc.len() == 2
+
+    let index = Self::dinuc_to_index(dinuc)
+    match index
+      Some(i) => Some(self.freqs[i])
+      None => None
+    end
+  end
+
+  # Converts dinucleotide string to array index
+  fn dinuc_to_index(dinuc: String) -> Option<Int>
+    requires dinuc.len() == 2
+
+    let upper = dinuc.to_uppercase()
+    let first = upper.char_at(0)
+    let second = upper.char_at(1)
+
+    let first_idx = match first
+      'A' => Some(0)
+      'C' => Some(1)
+      'G' => Some(2)
+      'T' => Some(3)
+      _ => None
+    end
+
+    let second_idx = match second
+      'A' => Some(0)
+      'C' => Some(1)
+      'G' => Some(2)
+      'T' => Some(3)
+      _ => None
+    end
+
+    match (first_idx, second_idx)
+      (Some(f), Some(s)) => Some(f * 4 + s)
+      _ => None
+    end
+  end
+
+  # Converts index back to dinucleotide string
+  fn index_to_dinuc(index: Int) -> String
+    requires index >= 0 and index < 16
+
+    let bases = ['A', 'C', 'G', 'T']
+    let first = bases[index / 4]
+    let second = bases[index % 4]
+    first.to_string() + second.to_string()
+  end
+
+  fn to_string(self) -> String
+    let mut output = "DinucleotideFreqs {\n"
+
+    let mut i = 0
+    loop
+      if i >= 16
+        break
+      end
+
+      let dinuc = Self::index_to_dinuc(i)
+      let freq = self.freqs[i] * 100.0
+      output = output + "  " + dinuc + ": " + freq.to_string() + "%\n"
+
+      i = i + 1
+    end
+
+    output + "}"
+  end
+end
+
+# Calculates GC content of a sequence
+#
+# Contracts:
+# - requires: sequence is valid
+# - ensures: result is between 0 and 1
+fn calculate_gc_content(seq: Sequence) -> Float
+  requires seq.is_valid()
+  ensures result >= 0.0 and result <= 1.0
+
+  seq.gc_content()
+end
+
+# Calculates GC content from a raw string
+fn calculate_gc_content_string(bases: String) -> Float
+  requires bases.len() > 0 : "Sequence cannot be empty"
+  ensures result >= 0.0 and result <= 1.0
+
+  let upper = bases.to_uppercase()
+  let mut gc_count = 0
+  let mut valid_count = 0
+
+  let mut i = 0
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    if c == 'G' or c == 'C'
+      gc_count = gc_count + 1
+      valid_count = valid_count + 1
+    else if c == 'A' or c == 'T'
+      valid_count = valid_count + 1
+    end
+    # Skip N and other characters
+
+    i = i + 1
+  end
+
+  if valid_count == 0
+    0.0
+  else
+    gc_count.to_float() / valid_count.to_float()
+  end
+end
+
+# Calculates AT content of a sequence
+fn calculate_at_content(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA : "AT content only for DNA"
+  ensures result >= 0.0 and result <= 1.0
+
+  seq.at_content()
+end
+
+# Calculates base frequencies for a sequence
+fn calculate_base_frequencies(seq: Sequence) -> BaseFrequencies
+  requires seq.is_valid()
+  ensures result.total_bases == seq.len()
+
+  let (a, c, g, t, n) = seq.base_counts()
+  let total = seq.len().to_float()
+
+  BaseFrequencies {
+    a_freq: a.to_float() / total,
+    c_freq: c.to_float() / total,
+    g_freq: g.to_float() / total,
+    t_freq: t.to_float() / total,
+    n_freq: n.to_float() / total,
+    total_bases: seq.len()
+  }
+end
+
+# Calculates base frequencies from a raw string
+fn calculate_base_frequencies_string(bases: String) -> BaseFrequencies
+  requires bases.len() > 0 : "Sequence cannot be empty"
+
+  let upper = bases.to_uppercase()
+  let mut a_count = 0
+  let mut c_count = 0
+  let mut g_count = 0
+  let mut t_count = 0
+  let mut n_count = 0
+
+  let mut i = 0
+  loop
+    if i >= upper.len()
+      break
+    end
+
+    let c = upper.char_at(i)
+    match c
+      'A' => a_count = a_count + 1
+      'C' => c_count = c_count + 1
+      'G' => g_count = g_count + 1
+      'T' => t_count = t_count + 1
+      'U' => t_count = t_count + 1  # RNA
+      _ => n_count = n_count + 1
+    end
+
+    i = i + 1
+  end
+
+  let total = upper.len().to_float()
+
+  BaseFrequencies {
+    a_freq: a_count.to_float() / total,
+    c_freq: c_count.to_float() / total,
+    g_freq: g_count.to_float() / total,
+    t_freq: t_count.to_float() / total,
+    n_freq: n_count.to_float() / total,
+    total_bases: upper.len()
+  }
+end
+
+# Calculates dinucleotide frequencies
+fn dinucleotide_frequencies(seq: Sequence) -> DinucleotideFreqs
+  requires seq.is_valid()
+  requires seq.len() >= 2 : "Sequence must have at least 2 bases"
+  ensures result.total_dinucleotides == seq.len() - 1
+
+  # Initialize frequency array
+  let mut freqs = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  let mut counts = [0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0]
+
+  let bases = seq.bases
+  let total = bases.len() - 1
+
+  # Count dinucleotides
+  let mut i = 0
+  loop
+    if i >= total
+      break
+    end
+
+    let dinuc = bases.slice(i, i + 2)
+    let index = DinucleotideFreqs::dinuc_to_index(dinuc)
+
+    match index
+      Some(idx) => counts[idx] = counts[idx] + 1
+      None => ()  # Skip if contains N
+    end
+
+    i = i + 1
+  end
+
+  # Convert counts to frequencies
+  let mut j = 0
+  loop
+    if j >= 16
+      break
+    end
+
+    freqs[j] = counts[j].to_float() / total.to_float()
+
+    j = j + 1
+  end
+
+  DinucleotideFreqs {
+    freqs: freqs,
+    total_dinucleotides: total
+  }
+end
+
+# Calculates sequence complexity using linguistic complexity
+# Returns value between 0 (low complexity) and 1 (high complexity)
+fn sequence_complexity(seq: Sequence, word_size: Int) -> Float
+  requires seq.is_valid()
+  requires word_size > 0 and word_size <= seq.len() : "Invalid word size"
+  ensures result >= 0.0 and result <= 1.0
+
+  # Count unique words of given size
+  let mut unique_words = []
+
+  let mut i = 0
+  loop
+    if i > seq.len() - word_size
+      break
+    end
+
+    let word = seq.bases.slice(i, i + word_size)
+
+    # Check if word is already in list
+    let mut found = false
+    let mut j = 0
+    loop
+      if j >= unique_words.len()
+        break
+      end
+      if unique_words[j] == word
+        found = true
+        break
+      end
+      j = j + 1
+    end
+
+    if !found
+      unique_words.push(word)
+    end
+
+    i = i + 1
+  end
+
+  # Calculate complexity
+  # Maximum possible unique words of size k is 4^k (for DNA)
+  let max_possible = 4.pow(word_size)
+  let actual_possible = seq.len() - word_size + 1
+
+  # The maximum we could observe is the minimum of max_possible and actual_possible
+  let max_observable = if max_possible < actual_possible
+    then max_possible
+    else actual_possible
+  end
+
+  unique_words.len().to_float() / max_observable.to_float()
+end
+
+# Calculates GC skew: (G - C) / (G + C)
+# Useful for identifying replication origins
+fn gc_skew(seq: Sequence) -> Float
+  requires seq.is_valid()
+  ensures result >= -1.0 and result <= 1.0
+
+  let (_, c_count, g_count, _, _) = seq.base_counts()
+
+  let gc_total = g_count + c_count
+  if gc_total == 0
+    0.0
+  else
+    (g_count - c_count).to_float() / gc_total.to_float()
+  end
+end
+
+# Calculates AT skew: (A - T) / (A + T)
+fn at_skew(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+  ensures result >= -1.0 and result <= 1.0
+
+  let (a_count, _, _, t_count, _) = seq.base_counts()
+
+  let at_total = a_count + t_count
+  if at_total == 0
+    0.0
+  else
+    (a_count - t_count).to_float() / at_total.to_float()
+  end
+end
+
+# Calculates cumulative GC skew along the sequence
+# Returns array of (position, cumulative_skew)
+fn cumulative_gc_skew(seq: Sequence, window_size: Int) -> [(Int, Float)]
+  requires seq.is_valid()
+  requires window_size > 0 and window_size <= seq.len()
+  ensures result.len() == seq.len() - window_size + 1
+
+  let mut results = []
+  let mut cumulative = 0.0
+
+  let mut i = 0
+  loop
+    if i > seq.len() - window_size
+      break
+    end
+
+    # Calculate skew for this window
+    let mut g_count = 0
+    let mut c_count = 0
+
+    let mut j = i
+    loop
+      if j >= i + window_size
+        break
+      end
+
+      let base = seq.bases.char_at(j)
+      if base == 'G'
+        g_count = g_count + 1
+      else if base == 'C'
+        c_count = c_count + 1
+      end
+
+      j = j + 1
+    end
+
+    let gc_total = g_count + c_count
+    let window_skew = if gc_total == 0
+      then 0.0
+      else (g_count - c_count).to_float() / gc_total.to_float()
+    end
+
+    cumulative = cumulative + window_skew
+    results.push((i, cumulative))
+
+    i = i + 1
+  end
+
+  results
+end
+
+# Calculates the molecular weight of a DNA sequence (approximate)
+fn molecular_weight_dna(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+  ensures result > 0.0
+
+  # Approximate molecular weights (Da) of nucleotides
+  let weight_a = 331.2  # dAMP
+  let weight_c = 307.2  # dCMP
+  let weight_g = 347.2  # dGMP
+  let weight_t = 322.2  # dTMP
+
+  let (a, c, g, t, n) = seq.base_counts()
+
+  # Use average weight for N
+  let avg_weight = (weight_a + weight_c + weight_g + weight_t) / 4.0
+
+  a.to_float() * weight_a +
+  c.to_float() * weight_c +
+  g.to_float() * weight_g +
+  t.to_float() * weight_t +
+  n.to_float() * avg_weight -
+  (seq.len() - 1).to_float() * 18.015  # Subtract water for phosphodiester bonds
+end
+
+# Estimates melting temperature (Tm) using the Wallace rule
+# Only accurate for short sequences (< 14 bp)
+fn melting_temp_wallace(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+  requires seq.len() <= 20 : "Wallace rule only accurate for short sequences"
+  ensures result > 0.0
+
+  let (a, c, g, t, _) = seq.base_counts()
+
+  # Tm = 2(A+T) + 4(G+C)
+  (2 * (a + t) + 4 * (g + c)).to_float()
+end
+
+# Estimates melting temperature using the basic formula
+# Tm = 64.9 + 41 * (G+C - 16.4) / N
+fn melting_temp_basic(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+  ensures result > 0.0
+
+  let (_, c, g, _, _) = seq.base_counts()
+  let n = seq.len()
+
+  64.9 + 41.0 * ((g + c).to_float() - 16.4) / n.to_float()
+end
+
+# Finds homopolymer runs (consecutive identical bases)
+# Returns array of (start_position, base, length)
+fn find_homopolymers(seq: Sequence, min_length: Int) -> [(Int, Char, Int)]
+  requires seq.is_valid()
+  requires min_length >= 2 : "Minimum length must be at least 2"
+  ensures result.all(|(_, _, len)| len >= min_length)
+
+  let mut runs = []
+
+  if seq.len() < min_length
+    return runs
+  end
+
+  let mut current_base = seq.bases.char_at(0)
+  let mut run_start = 0
+  let mut run_length = 1
+
+  let mut i = 1
+  loop
+    if i >= seq.len()
+      break
+    end
+
+    let base = seq.bases.char_at(i)
+
+    if base == current_base
+      run_length = run_length + 1
+    else
+      # End of run
+      if run_length >= min_length
+        runs.push((run_start, current_base, run_length))
+      end
+
+      current_base = base
+      run_start = i
+      run_length = 1
+    end
+
+    i = i + 1
+  end
+
+  # Check final run
+  if run_length >= min_length
+    runs.push((run_start, current_base, run_length))
+  end
+
+  runs
+end
+
+# Calculates CpG observed/expected ratio
+# CpG O/E = (CpG count * N) / (C count * G count)
+fn cpg_ratio(seq: Sequence) -> Float
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+  ensures result >= 0.0
+
+  let (_, c_count, g_count, _, _) = seq.base_counts()
+
+  if c_count == 0 or g_count == 0
+    return 0.0
+  end
+
+  # Count CpG dinucleotides
+  let mut cpg_count = 0
+  let mut i = 0
+
+  loop
+    if i >= seq.len() - 1
+      break
+    end
+
+    if seq.bases.char_at(i) == 'C' and seq.bases.char_at(i + 1) == 'G'
+      cpg_count = cpg_count + 1
+    end
+
+    i = i + 1
+  end
+
+  let n = seq.len().to_float()
+  (cpg_count.to_float() * n) / (c_count.to_float() * g_count.to_float())
+end
+
+# Determines if sequence is in a CpG island
+# Typically: length >= 200, GC >= 50%, CpG O/E >= 0.6
+fn is_cpg_island(seq: Sequence) -> Bool
+  requires seq.is_valid()
+  requires seq.seq_type == SequenceType::DNA
+
+  if seq.len() < 200
+    return false
+  end
+
+  let gc = seq.gc_content()
+  if gc < 0.5
+    return false
+  end
+
+  let cpg_oe = cpg_ratio(seq)
+  cpg_oe >= 0.6
+end

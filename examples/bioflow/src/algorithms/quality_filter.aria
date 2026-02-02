@@ -1,0 +1,652 @@
+# BioFlow - Quality Filtering Algorithms
+# Filter reads by quality, length, and other criteria with contracts
+
+import core::sequence::{Sequence}
+import core::quality::{QualityScores, Q_HIGH, Q_MEDIUM}
+import core::read::{Read, ReadError}
+
+# Filter configuration
+struct FilterConfig
+  min_quality: Int        # Minimum average quality score
+  min_length: Int         # Minimum read length
+  max_length: Int         # Maximum read length (0 = no limit)
+  min_gc: Float           # Minimum GC content
+  max_gc: Float           # Maximum GC content
+  max_ambiguous: Float    # Maximum proportion of N bases
+  trim_quality: Int       # Quality threshold for trimming (0 = no trimming)
+
+  # Invariant: quality thresholds must be valid
+  invariant self.min_quality >= 0 and self.min_quality <= 40
+  invariant self.trim_quality >= 0 and self.trim_quality <= 40
+
+  # Invariant: length constraints must be consistent
+  invariant self.min_length >= 0
+  invariant self.max_length == 0 or self.max_length >= self.min_length
+
+  # Invariant: GC constraints must be valid proportions
+  invariant self.min_gc >= 0.0 and self.min_gc <= 1.0
+  invariant self.max_gc >= 0.0 and self.max_gc <= 1.0
+  invariant self.min_gc <= self.max_gc
+
+  # Invariant: ambiguous threshold must be valid proportion
+  invariant self.max_ambiguous >= 0.0 and self.max_ambiguous <= 1.0
+end
+
+impl FilterConfig
+  # Creates a default filter configuration
+  fn default() -> FilterConfig
+    FilterConfig {
+      min_quality: Q_MEDIUM,   # Q20
+      min_length: 50,
+      max_length: 0,           # No limit
+      min_gc: 0.0,
+      max_gc: 1.0,
+      max_ambiguous: 0.05,     # 5% max N bases
+      trim_quality: 0          # No trimming
+    }
+  end
+
+  # Creates a strict filter configuration
+  fn strict() -> FilterConfig
+    FilterConfig {
+      min_quality: Q_HIGH,     # Q30
+      min_length: 100,
+      max_length: 0,
+      min_gc: 0.20,
+      max_gc: 0.80,
+      max_ambiguous: 0.01,     # 1% max N bases
+      trim_quality: Q_MEDIUM
+    }
+  end
+
+  # Creates a permissive filter configuration
+  fn permissive() -> FilterConfig
+    FilterConfig {
+      min_quality: 10,
+      min_length: 20,
+      max_length: 0,
+      min_gc: 0.0,
+      max_gc: 1.0,
+      max_ambiguous: 0.10,     # 10% max N bases
+      trim_quality: 0
+    }
+  end
+
+  # Builder pattern: sets minimum quality
+  fn with_min_quality(mut self, min_q: Int) -> FilterConfig
+    requires min_q >= 0 and min_q <= 40
+    self.min_quality = min_q
+    self
+  end
+
+  # Builder pattern: sets minimum length
+  fn with_min_length(mut self, min_len: Int) -> FilterConfig
+    requires min_len >= 0
+    self.min_length = min_len
+    self
+  end
+
+  # Builder pattern: sets maximum length
+  fn with_max_length(mut self, max_len: Int) -> FilterConfig
+    requires max_len >= 0
+    requires max_len == 0 or max_len >= self.min_length
+    self.max_length = max_len
+    self
+  end
+
+  # Builder pattern: sets GC content range
+  fn with_gc_range(mut self, min_gc: Float, max_gc: Float) -> FilterConfig
+    requires min_gc >= 0.0 and min_gc <= 1.0
+    requires max_gc >= 0.0 and max_gc <= 1.0
+    requires min_gc <= max_gc
+    self.min_gc = min_gc
+    self.max_gc = max_gc
+    self
+  end
+
+  # Builder pattern: sets maximum ambiguous bases
+  fn with_max_ambiguous(mut self, max_n: Float) -> FilterConfig
+    requires max_n >= 0.0 and max_n <= 1.0
+    self.max_ambiguous = max_n
+    self
+  end
+
+  # Builder pattern: sets quality trimming threshold
+  fn with_trim_quality(mut self, trim_q: Int) -> FilterConfig
+    requires trim_q >= 0 and trim_q <= 40
+    self.trim_quality = trim_q
+    self
+  end
+end
+
+# Result of filtering operation
+struct FilterResult
+  passed: [Read]
+  failed: [Read]
+  total_input: Int
+  total_passed: Int
+  total_failed: Int
+  pass_rate: Float
+
+  # Invariant: counts must be consistent
+  invariant self.total_passed == self.passed.len()
+  invariant self.total_failed == self.failed.len()
+  invariant self.total_input == self.total_passed + self.total_failed
+
+  # Invariant: pass rate must be valid proportion
+  invariant self.pass_rate >= 0.0 and self.pass_rate <= 1.0
+end
+
+impl FilterResult
+  # Creates a filter result
+  fn new(passed: [Read], failed: [Read]) -> FilterResult
+    let total = passed.len() + failed.len()
+    let rate = if total == 0
+      then 0.0
+      else passed.len().to_float() / total.to_float()
+    end
+
+    FilterResult {
+      passed: passed,
+      failed: failed,
+      total_input: total,
+      total_passed: passed.len(),
+      total_failed: failed.len(),
+      pass_rate: rate
+    }
+  end
+
+  fn to_string(self) -> String
+    "FilterResult { total: " + self.total_input.to_string() +
+    ", passed: " + self.total_passed.to_string() +
+    ", failed: " + self.total_failed.to_string() +
+    ", rate: " + (self.pass_rate * 100.0).to_string() + "% }"
+  end
+end
+
+# Filters reads by minimum average quality score
+#
+# Contracts:
+# - requires: min_quality is in valid Phred range
+# - ensures: all returned reads have average quality >= min_quality
+# - ensures: result length <= input length
+fn filter_by_quality(reads: [Read], min_quality: Int) -> [Read]
+  requires min_quality >= 0 and min_quality <= 40 : "Quality must be in Phred range"
+  ensures result.all(|r| r.avg_quality() >= min_quality.to_float())
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    if reads[i].avg_quality() >= min_quality.to_float()
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads by minimum length
+fn filter_by_length(reads: [Read], min_length: Int) -> [Read]
+  requires min_length > 0 : "Minimum length must be positive"
+  ensures result.all(|r| r.len() >= min_length)
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    if reads[i].len() >= min_length
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads by maximum length
+fn filter_by_max_length(reads: [Read], max_length: Int) -> [Read]
+  requires max_length > 0 : "Maximum length must be positive"
+  ensures result.all(|r| r.len() <= max_length)
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    if reads[i].len() <= max_length
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads by length range
+fn filter_by_length_range(reads: [Read], min_length: Int, max_length: Int) -> [Read]
+  requires min_length > 0
+  requires max_length >= min_length
+  ensures result.all(|r| r.len() >= min_length and r.len() <= max_length)
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    let len = reads[i].len()
+    if len >= min_length and len <= max_length
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads by GC content range
+fn filter_by_gc(reads: [Read], min_gc: Float, max_gc: Float) -> [Read]
+  requires min_gc >= 0.0 and min_gc <= 1.0
+  requires max_gc >= 0.0 and max_gc <= 1.0
+  requires min_gc <= max_gc
+  ensures result.all(|r| r.gc_content() >= min_gc and r.gc_content() <= max_gc)
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    let gc = reads[i].gc_content()
+    if gc >= min_gc and gc <= max_gc
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads by maximum proportion of ambiguous (N) bases
+fn filter_by_ambiguous(reads: [Read], max_proportion: Float) -> [Read]
+  requires max_proportion >= 0.0 and max_proportion <= 1.0
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    let n_count = reads[i].sequence.count_ambiguous()
+    let proportion = n_count.to_float() / reads[i].len().to_float()
+
+    if proportion <= max_proportion
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads that have no ambiguous bases
+fn filter_no_ambiguous(reads: [Read]) -> [Read]
+  ensures result.all(|r| !r.sequence.has_ambiguous())
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    if !reads[i].sequence.has_ambiguous()
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Applies full filter configuration
+fn filter_reads(reads: [Read], config: FilterConfig) -> FilterResult
+  requires reads.len() >= 0
+  ensures result.total_input == reads.len()
+  ensures result.passed.all(|r| r.avg_quality() >= config.min_quality.to_float())
+  ensures result.passed.all(|r| r.len() >= config.min_length)
+
+  let mut passed = []
+  let mut failed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    let mut read = reads[i]
+    let mut passes = true
+
+    # Apply trimming if configured
+    if config.trim_quality > 0
+      match read.trim_quality(config.trim_quality)
+        Ok(trimmed) => read = trimmed
+        Err(_) => {
+          passes = false
+        }
+      end
+    end
+
+    # Check quality
+    if passes and read.avg_quality() < config.min_quality.to_float()
+      passes = false
+    end
+
+    # Check minimum length
+    if passes and read.len() < config.min_length
+      passes = false
+    end
+
+    # Check maximum length
+    if passes and config.max_length > 0 and read.len() > config.max_length
+      passes = false
+    end
+
+    # Check GC content
+    if passes
+      let gc = read.gc_content()
+      if gc < config.min_gc or gc > config.max_gc
+        passes = false
+      end
+    end
+
+    # Check ambiguous bases
+    if passes
+      let n_count = read.sequence.count_ambiguous()
+      let proportion = n_count.to_float() / read.len().to_float()
+      if proportion > config.max_ambiguous
+        passes = false
+      end
+    end
+
+    if passes
+      passed.push(read)
+    else
+      failed.push(reads[i])  # Store original read in failed
+    end
+
+    i = i + 1
+  end
+
+  FilterResult::new(passed, failed)
+end
+
+# Trims reads and filters by post-trim criteria
+fn trim_and_filter(
+  reads: [Read],
+  trim_quality: Int,
+  min_length_after_trim: Int
+) -> FilterResult
+  requires trim_quality >= 0 and trim_quality <= 40
+  requires min_length_after_trim > 0
+  ensures result.total_input == reads.len()
+
+  let mut passed = []
+  let mut failed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    match reads[i].trim_quality(trim_quality)
+      Ok(trimmed) => {
+        if trimmed.len() >= min_length_after_trim
+          passed.push(trimmed)
+        else
+          failed.push(reads[i])
+        end
+      }
+      Err(_) => failed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  FilterResult::new(passed, failed)
+end
+
+# Filters by minimum quality at specific positions
+fn filter_by_positional_quality(
+  reads: [Read],
+  positions: [Int],
+  min_quality: Int
+) -> [Read]
+  requires min_quality >= 0 and min_quality <= 40
+  requires positions.all(|p| p >= 0)
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    let mut passes = true
+
+    let mut j = 0
+    loop
+      if j >= positions.len()
+        break
+      end
+
+      let pos = positions[j]
+      if pos < reads[i].len()
+        match reads[i].quality.score_at(pos)
+          Some(q) => {
+            if q < min_quality
+              passes = false
+              break
+            end
+          }
+          None => ()
+        end
+      end
+
+      j = j + 1
+    end
+
+    if passes
+      passed.push(reads[i])
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Filters reads with low complexity (repetitive sequences)
+fn filter_low_complexity(reads: [Read], min_complexity: Float, word_size: Int) -> [Read]
+  requires min_complexity >= 0.0 and min_complexity <= 1.0
+  requires word_size > 0
+  ensures result.len() <= reads.len()
+
+  let mut passed = []
+
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+
+    if reads[i].len() >= word_size
+      # Calculate simple complexity measure
+      let mut unique_words = []
+
+      let mut j = 0
+      loop
+        if j > reads[i].len() - word_size
+          break
+        end
+
+        let word = reads[i].sequence.bases.slice(j, j + word_size)
+
+        let mut found = false
+        let mut k = 0
+        loop
+          if k >= unique_words.len()
+            break
+          end
+          if unique_words[k] == word
+            found = true
+            break
+          end
+          k = k + 1
+        end
+
+        if !found
+          unique_words.push(word)
+        end
+
+        j = j + 1
+      end
+
+      let max_possible = reads[i].len() - word_size + 1
+      let complexity = unique_words.len().to_float() / max_possible.to_float()
+
+      if complexity >= min_complexity
+        passed.push(reads[i])
+      end
+    else
+      passed.push(reads[i])  # Too short to assess
+    end
+
+    i = i + 1
+  end
+
+  passed
+end
+
+# Batch filtering with statistics
+fn filter_reads_with_stats(reads: [Read], config: FilterConfig) -> (FilterResult, FilterStats)
+  requires reads.len() > 0
+
+  let result = filter_reads(reads, config)
+
+  let stats = FilterStats {
+    total_input: result.total_input,
+    passed_count: result.total_passed,
+    failed_count: result.total_failed,
+    pass_rate: result.pass_rate,
+    avg_quality_passed: calculate_avg_quality(result.passed),
+    avg_quality_failed: calculate_avg_quality(result.failed),
+    avg_length_passed: calculate_avg_length(result.passed),
+    avg_length_failed: calculate_avg_length(result.failed)
+  }
+
+  (result, stats)
+end
+
+# Helper: calculate average quality
+fn calculate_avg_quality(reads: [Read]) -> Float
+  if reads.len() == 0
+    return 0.0
+  end
+
+  let mut sum = 0.0
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+    sum = sum + reads[i].avg_quality()
+    i = i + 1
+  end
+
+  sum / reads.len().to_float()
+end
+
+# Helper: calculate average length
+fn calculate_avg_length(reads: [Read]) -> Float
+  if reads.len() == 0
+    return 0.0
+  end
+
+  let mut sum = 0
+  let mut i = 0
+  loop
+    if i >= reads.len()
+      break
+    end
+    sum = sum + reads[i].len()
+    i = i + 1
+  end
+
+  sum.to_float() / reads.len().to_float()
+end
+
+# Filter statistics
+struct FilterStats
+  total_input: Int
+  passed_count: Int
+  failed_count: Int
+  pass_rate: Float
+  avg_quality_passed: Float
+  avg_quality_failed: Float
+  avg_length_passed: Float
+  avg_length_failed: Float
+end
+
+impl FilterStats
+  fn to_string(self) -> String
+    "FilterStats {\n" +
+    "  Input reads: " + self.total_input.to_string() + "\n" +
+    "  Passed: " + self.passed_count.to_string() +
+    " (" + (self.pass_rate * 100.0).to_string() + "%)\n" +
+    "  Failed: " + self.failed_count.to_string() + "\n" +
+    "  Avg quality (passed): " + self.avg_quality_passed.to_string() + "\n" +
+    "  Avg quality (failed): " + self.avg_quality_failed.to_string() + "\n" +
+    "  Avg length (passed): " + self.avg_length_passed.to_string() + "\n" +
+    "  Avg length (failed): " + self.avg_length_failed.to_string() + "\n" +
+    "}"
+  end
+end

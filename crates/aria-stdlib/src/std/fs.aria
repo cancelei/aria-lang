@@ -1,0 +1,304 @@
+# Aria Standard Library - File System Module
+# File system operations
+
+# File metadata
+struct Metadata
+  size: Int           # File size in bytes
+  is_file: Bool       # Is a regular file
+  is_dir: Bool        # Is a directory
+  is_symlink: Bool    # Is a symbolic link
+  readonly: Bool      # Is read-only
+  created: Option<Int>   # Creation time (Unix timestamp)
+  modified: Option<Int>  # Last modified time
+  accessed: Option<Int>  # Last access time
+end
+
+impl Metadata
+  fn is_file(self) -> Bool
+    self.is_file
+  end
+
+  fn is_dir(self) -> Bool
+    self.is_dir
+  end
+
+  fn is_symlink(self) -> Bool
+    self.is_symlink
+  end
+end
+
+# Directory entry from directory listing
+struct DirEntry
+  name: String
+  path: String
+  metadata: Metadata
+end
+
+impl DirEntry
+  fn is_file(self) -> Bool
+    self.metadata.is_file
+  end
+
+  fn is_dir(self) -> Bool
+    self.metadata.is_dir
+  end
+end
+
+# Path utilities
+struct Path
+  path: String
+end
+
+impl Path
+  fn new(path: String) -> Path
+    Path { path: path }
+  end
+
+  fn to_string(self) -> String
+    self.path
+  end
+
+  # Joins two paths
+  fn join(self, other: String) -> Path
+    let sep = "/"
+    if self.path.ends_with(sep)
+      Path { path: self.path + other }
+    else
+      Path { path: self.path + sep + other }
+    end
+  end
+
+  # Gets the parent directory
+  fn parent(self) -> Option<Path>
+    let sep = "/"
+    match self.path.rfind(sep)
+      Some(idx) ->
+        if idx == 0
+          Some(Path { path: sep })
+        else
+          Some(Path { path: self.path.substring(0, idx) })
+        end
+      None -> None
+    end
+  end
+
+  # Gets the file name
+  fn file_name(self) -> Option<String>
+    let sep = "/"
+    match self.path.rfind(sep)
+      Some(idx) -> Some(self.path.substring(idx + 1, self.path.len()))
+      None -> Some(self.path)
+    end
+  end
+
+  # Gets the file stem (name without extension)
+  fn file_stem(self) -> Option<String>
+    match self.file_name()
+      Some(name) ->
+        match name.rfind(".")
+          Some(idx) -> Some(name.substring(0, idx))
+          None -> Some(name)
+        end
+      None -> None
+    end
+  end
+
+  # Gets the file extension
+  fn extension(self) -> Option<String>
+    match self.file_name()
+      Some(name) ->
+        match name.rfind(".")
+          Some(idx) -> Some(name.substring(idx + 1, name.len()))
+          None -> None
+        end
+      None -> None
+    end
+  end
+
+  # Checks if path is absolute
+  fn is_absolute(self) -> Bool
+    self.path.starts_with("/")
+  end
+
+  # Checks if path is relative
+  fn is_relative(self) -> Bool
+    !self.is_absolute()
+  end
+
+  # Checks if path exists
+  fn exists(self) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Checks if path is a file
+  fn is_file(self) -> Bool
+    match metadata(self.path)
+      Ok(m) -> m.is_file
+      Err(_) -> false
+    end
+  end
+
+  # Checks if path is a directory
+  fn is_dir(self) -> Bool
+    match metadata(self.path)
+      Ok(m) -> m.is_dir
+      Err(_) -> false
+    end
+  end
+end
+
+# Gets file/directory metadata
+fn metadata(path: String) -> Result<Metadata, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Checks if a path exists
+fn exists(path: String) -> Bool
+  metadata(path).is_ok()
+end
+
+# Checks if a path is a file
+fn is_file(path: String) -> Bool
+  match metadata(path)
+    Ok(m) -> m.is_file
+    Err(_) -> false
+  end
+end
+
+# Checks if a path is a directory
+fn is_dir(path: String) -> Bool
+  match metadata(path)
+    Ok(m) -> m.is_dir
+    Err(_) -> false
+  end
+end
+
+# Reads entire file to string
+fn read_to_string(path: String) -> Result<String, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Reads file as bytes
+fn read(path: String) -> Result<[Int], String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Writes string to file (creates or overwrites)
+fn write(path: String, contents: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Writes bytes to file (creates or overwrites)
+fn write_bytes(path: String, contents: [Int]) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Appends string to file
+fn append(path: String, contents: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Creates a directory
+fn create_dir(path: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Creates a directory and all parent directories
+fn create_dir_all(path: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Removes a file
+fn remove_file(path: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Removes an empty directory
+fn remove_dir(path: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Removes a directory and all its contents
+fn remove_dir_all(path: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Copies a file
+fn copy(from: String, to: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Renames/moves a file or directory
+fn rename(from: String, to: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Lists directory contents
+fn read_dir(path: String) -> Result<[DirEntry], String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Recursively walks a directory
+fn walk_dir(path: String) -> Result<[DirEntry], String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Creates a symbolic link
+fn symlink(original: String, link: String) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Reads a symbolic link target
+fn read_link(path: String) -> Result<String, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Gets the canonical (absolute) path
+fn canonicalize(path: String) -> Result<String, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Creates a temporary file and returns its path
+fn temp_file() -> Result<String, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Creates a temporary directory and returns its path
+fn temp_dir() -> Result<String, String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Sets file permissions
+fn set_permissions(path: String, readonly: Bool) -> Result<(), String>
+  # TODO: Native implementation
+  Err("Not implemented")
+end
+
+# Gets the file size
+fn file_size(path: String) -> Result<Int, String>
+  match metadata(path)
+    Ok(m) -> Ok(m.size)
+    Err(e) -> Err(e)
+  end
+end

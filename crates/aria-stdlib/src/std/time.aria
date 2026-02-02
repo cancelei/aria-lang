@@ -1,0 +1,276 @@
+# Aria Standard Library - Time Module
+# Date, time, and duration handling
+
+# Duration in nanoseconds
+struct Duration
+  nanos: Int
+end
+
+impl Duration
+  # Creates a duration from nanoseconds
+  fn from_nanos(nanos: Int) -> Duration
+    Duration { nanos: nanos }
+  end
+
+  # Creates a duration from microseconds
+  fn from_micros(micros: Int) -> Duration
+    Duration { nanos: micros * 1000 }
+  end
+
+  # Creates a duration from milliseconds
+  fn from_millis(millis: Int) -> Duration
+    Duration { nanos: millis * 1000000 }
+  end
+
+  # Creates a duration from seconds
+  fn from_secs(secs: Int) -> Duration
+    Duration { nanos: secs * 1000000000 }
+  end
+
+  # Creates a duration from minutes
+  fn from_mins(mins: Int) -> Duration
+    Duration { nanos: mins * 60 * 1000000000 }
+  end
+
+  # Creates a duration from hours
+  fn from_hours(hours: Int) -> Duration
+    Duration { nanos: hours * 3600 * 1000000000 }
+  end
+
+  # Zero duration
+  fn zero() -> Duration
+    Duration { nanos: 0 }
+  end
+
+  # Returns total nanoseconds
+  fn as_nanos(self) -> Int
+    self.nanos
+  end
+
+  # Returns total microseconds
+  fn as_micros(self) -> Int
+    self.nanos / 1000
+  end
+
+  # Returns total milliseconds
+  fn as_millis(self) -> Int
+    self.nanos / 1000000
+  end
+
+  # Returns total seconds (as float)
+  fn as_secs_f(self) -> Float
+    self.nanos / 1000000000.0
+  end
+
+  # Returns whole seconds
+  fn as_secs(self) -> Int
+    self.nanos / 1000000000
+  end
+
+  # Returns subsecond nanoseconds
+  fn subsec_nanos(self) -> Int
+    self.nanos % 1000000000
+  end
+
+  # Checks if duration is zero
+  fn is_zero(self) -> Bool
+    self.nanos == 0
+  end
+
+  # Adds two durations
+  fn add(self, other: Duration) -> Duration
+    Duration { nanos: self.nanos + other.nanos }
+  end
+
+  # Subtracts two durations
+  fn sub(self, other: Duration) -> Duration
+    Duration { nanos: self.nanos - other.nanos }
+  end
+
+  # Multiplies duration by a scalar
+  fn mul(self, factor: Int) -> Duration
+    Duration { nanos: self.nanos * factor }
+  end
+
+  # Divides duration by a scalar
+  fn div(self, divisor: Int) -> Duration
+    Duration { nanos: self.nanos / divisor }
+  end
+end
+
+# Instant represents a point in time (monotonic clock)
+struct Instant
+  nanos: Int
+end
+
+impl Instant
+  # Returns the current instant
+  fn now() -> Instant
+    # TODO: Native implementation
+    Instant { nanos: 0 }
+  end
+
+  # Returns time elapsed since this instant
+  fn elapsed(self) -> Duration
+    let now = Instant::now()
+    Duration { nanos: now.nanos - self.nanos }
+  end
+
+  # Returns duration since another instant
+  fn duration_since(self, earlier: Instant) -> Duration
+    Duration { nanos: self.nanos - earlier.nanos }
+  end
+end
+
+# System time (wall clock)
+struct SystemTime
+  secs: Int     # Seconds since Unix epoch
+  nanos: Int    # Nanosecond subsecond
+end
+
+impl SystemTime
+  # Returns the current system time
+  fn now() -> SystemTime
+    # TODO: Native implementation
+    SystemTime { secs: 0, nanos: 0 }
+  end
+
+  # Unix epoch (1970-01-01 00:00:00 UTC)
+  fn unix_epoch() -> SystemTime
+    SystemTime { secs: 0, nanos: 0 }
+  end
+
+  # Returns seconds since Unix epoch
+  fn timestamp(self) -> Int
+    self.secs
+  end
+
+  # Returns milliseconds since Unix epoch
+  fn timestamp_millis(self) -> Int
+    self.secs * 1000 + self.nanos / 1000000
+  end
+
+  # Duration since Unix epoch
+  fn duration_since_epoch(self) -> Duration
+    Duration { nanos: self.secs * 1000000000 + self.nanos }
+  end
+
+  # Returns duration since another time
+  fn duration_since(self, earlier: SystemTime) -> Result<Duration, String>
+    let diff_secs = self.secs - earlier.secs
+    let diff_nanos = self.nanos - earlier.nanos
+    if diff_secs < 0 || (diff_secs == 0 && diff_nanos < 0)
+      Err("SystemTime is earlier than specified time")
+    else
+      Ok(Duration { nanos: diff_secs * 1000000000 + diff_nanos })
+    end
+  end
+
+  # Adds duration to time
+  fn add(self, duration: Duration) -> SystemTime
+    let total_nanos = self.nanos + duration.as_nanos() % 1000000000
+    let extra_secs = duration.as_secs()
+    let carry = total_nanos / 1000000000
+    SystemTime {
+      secs: self.secs + extra_secs + carry,
+      nanos: total_nanos % 1000000000
+    }
+  end
+end
+
+# Date and time components
+struct DateTime
+  year: Int
+  month: Int   # 1-12
+  day: Int     # 1-31
+  hour: Int    # 0-23
+  minute: Int  # 0-59
+  second: Int  # 0-59
+end
+
+impl DateTime
+  # Creates a new DateTime
+  fn new(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) -> DateTime
+    DateTime {
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second
+    }
+  end
+
+  # Current date and time (UTC)
+  fn now() -> DateTime
+    # TODO: Native implementation
+    DateTime { year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0 }
+  end
+
+  # Creates DateTime from Unix timestamp
+  fn from_timestamp(timestamp: Int) -> DateTime
+    # TODO: Implement proper date calculation
+    DateTime { year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0 }
+  end
+
+  # Converts to Unix timestamp
+  fn timestamp(self) -> Int
+    # TODO: Implement proper calculation
+    0
+  end
+
+  # Formats as ISO 8601 string
+  fn to_iso_string(self) -> String
+    # TODO: Implement formatting
+    "1970-01-01T00:00:00Z"
+  end
+
+  # Day of the week (0 = Sunday)
+  fn weekday(self) -> Int
+    # TODO: Implement calculation
+    0
+  end
+
+  # Day of the year (1-366)
+  fn day_of_year(self) -> Int
+    # TODO: Implement calculation
+    1
+  end
+
+  # Check if year is a leap year
+  fn is_leap_year(self) -> Bool
+    let y = self.year
+    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+  end
+
+  # Number of days in the current month
+  fn days_in_month(self) -> Int
+    match self.month
+      1 -> 31
+      2 -> if self.is_leap_year() { 29 } else { 28 }
+      3 -> 31
+      4 -> 30
+      5 -> 31
+      6 -> 30
+      7 -> 31
+      8 -> 31
+      9 -> 30
+      10 -> 31
+      11 -> 30
+      12 -> 31
+      _ -> 0
+    end
+  end
+end
+
+# Sleeps for the specified duration
+fn sleep(duration: Duration)
+  # TODO: Native implementation
+end
+
+# Measures execution time of a function
+fn measure(f: Fn()) -> Duration
+  let start = Instant::now()
+  f()
+  start.elapsed()
+end

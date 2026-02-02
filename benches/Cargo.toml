@@ -1,0 +1,39 @@
+[package]
+name = "aria-benchmarks"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+aria-lexer = { path = "../crates/aria-lexer" }
+aria-ast = { path = "../crates/aria-ast" }
+aria-parser = { path = "../crates/aria-parser" }
+aria-types = { path = "../crates/aria-types" }
+aria-interpreter = { path = "../crates/aria-interpreter" }
+aria-mir = { path = "../crates/aria-mir" }
+aria-codegen = { path = "../crates/aria-codegen" }
+
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "compiler_benchmarks"
+path = "benches/compiler_benchmarks.rs"
+harness = false
+
+[[bench]]
+name = "runtime_benchmarks"
+path = "benches/runtime_benchmarks.rs"
+harness = false
+
+[[bench]]
+name = "typechecker_benchmarks"
+path = "benches/typechecker_benchmarks.rs"
+harness = false
+
+[[bench]]
+name = "optimization_benchmarks"
+path = "optimization_benchmarks.rs"
+harness = false

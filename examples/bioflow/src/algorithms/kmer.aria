@@ -1,0 +1,599 @@
+# BioFlow - K-mer Counting and Analysis
+# K-mer frequency analysis with comprehensive contracts
+
+import core::sequence::{Sequence}
+
+# A single k-mer with its properties
+struct KMer
+  sequence: String
+  k: Int
+
+  # Invariant: sequence length must equal k
+  invariant self.sequence.len() == self.k : "K-mer length must match k"
+
+  # Invariant: k must be positive
+  invariant self.k > 0 : "K must be positive"
+end
+
+impl KMer
+  # Creates a new k-mer
+  fn new(sequence: String) -> Result<KMer, String>
+    requires sequence.len() > 0 : "K-mer sequence cannot be empty"
+    ensures result.is_ok() implies result.unwrap().k == sequence.len()
+
+    Ok(KMer {
+      sequence: sequence.to_uppercase(),
+      k: sequence.len()
+    })
+  end
+
+  # Returns the reverse complement of this k-mer
+  fn reverse_complement(self) -> KMer
+    ensures result.k == self.k
+
+    let mut rc = ""
+    let mut i = self.sequence.len() - 1
+
+    loop
+      if i < 0
+        break
+      end
+
+      let c = self.sequence.char_at(i)
+      let comp = match c
+        'A' => 'T'
+        'T' => 'A'
+        'C' => 'G'
+        'G' => 'C'
+        _ => 'N'
+      end
+      rc = rc + comp.to_string()
+
+      i = i - 1
+    end
+
+    KMer {
+      sequence: rc,
+      k: self.k
+    }
+  end
+
+  # Returns the canonical form (lexicographically smaller of forward/reverse complement)
+  fn canonical(self) -> KMer
+    ensures result.k == self.k
+
+    let rc = self.reverse_complement()
+    if self.sequence < rc.sequence
+      then self
+      else rc
+    end
+  end
+end
+
+# K-mer counts storage
+struct KMerCounts
+  k: Int
+  counts: [(String, Int)]  # Array of (kmer, count) pairs
+  total_kmers: Int
+
+  # Invariant: k must be positive
+  invariant self.k > 0 : "K must be positive"
+
+  # Invariant: all k-mers must have correct length
+  invariant self.counts.all(|(kmer, _)| kmer.len() == self.k) :
+    "All k-mers must have length k"
+end
+
+impl KMerCounts
+  # Creates an empty k-mer counter
+  fn new(k: Int) -> KMerCounts
+    requires k > 0 : "K must be positive"
+    ensures result.k == k
+    ensures result.total_kmers == 0
+
+    KMerCounts {
+      k: k,
+      counts: [],
+      total_kmers: 0
+    }
+  end
+
+  # Adds a k-mer count
+  fn add(mut self, kmer: String, count: Int)
+    requires kmer.len() == self.k : "K-mer length must match"
+    requires count > 0 : "Count must be positive"
+
+    # Check if k-mer already exists
+    let mut found = false
+    let mut i = 0
+
+    loop
+      if i >= self.counts.len()
+        break
+      end
+
+      if self.counts[i].0 == kmer
+        let (k, c) = self.counts[i]
+        self.counts[i] = (k, c + count)
+        found = true
+        break
+      end
+
+      i = i + 1
+    end
+
+    if !found
+      self.counts.push((kmer, count))
+    end
+
+    self.total_kmers = self.total_kmers + count
+  end
+
+  # Gets the count for a specific k-mer
+  fn get_count(self, kmer: String) -> Int
+    requires kmer.len() == self.k
+    ensures result >= 0
+
+    let mut i = 0
+    loop
+      if i >= self.counts.len()
+        break
+      end
+
+      if self.counts[i].0 == kmer
+        return self.counts[i].1
+      end
+
+      i = i + 1
+    end
+
+    0
+  end
+
+  # Returns the number of unique k-mers
+  fn unique_count(self) -> Int
+    ensures result >= 0
+    self.counts.len()
+  end
+
+  # Returns the most frequent k-mers
+  fn most_frequent(self, n: Int) -> [(String, Int)]
+    requires n > 0 : "N must be positive"
+    ensures result.len() <= n
+    ensures result.len() <= self.counts.len()
+
+    # Sort by count descending
+    let sorted = self.sorted_by_count()
+
+    # Take top n
+    let mut result = []
+    let limit = if n < sorted.len() then n else sorted.len() end
+
+    let mut i = 0
+    loop
+      if i >= limit
+        break
+      end
+
+      result.push(sorted[i])
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Returns the least frequent k-mers
+  fn least_frequent(self, n: Int) -> [(String, Int)]
+    requires n > 0
+    ensures result.len() <= n
+
+    # Sort by count ascending
+    let sorted = self.sorted_by_count()
+    let len = sorted.len()
+
+    let mut result = []
+    let limit = if n < len then n else len end
+
+    let mut i = 0
+    loop
+      if i >= limit
+        break
+      end
+
+      result.push(sorted[len - 1 - i])
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Sorts k-mers by count (descending)
+  fn sorted_by_count(self) -> [(String, Int)]
+    ensures result.len() == self.counts.len()
+
+    let mut sorted = self.counts.clone()
+    let n = sorted.len()
+
+    # Bubble sort (for demonstration; would use quicksort in practice)
+    let mut i = 0
+    loop
+      if i >= n
+        break
+      end
+
+      let mut j = 0
+      loop
+        if j >= n - i - 1
+          break
+        end
+
+        if sorted[j].1 < sorted[j + 1].1
+          let temp = sorted[j]
+          sorted[j] = sorted[j + 1]
+          sorted[j + 1] = temp
+        end
+
+        j = j + 1
+      end
+
+      i = i + 1
+    end
+
+    sorted
+  end
+
+  # Calculates frequency of a k-mer
+  fn frequency(self, kmer: String) -> Float
+    requires kmer.len() == self.k
+    ensures result >= 0.0 and result <= 1.0
+
+    if self.total_kmers == 0
+      0.0
+    else
+      self.get_count(kmer).to_float() / self.total_kmers.to_float()
+    end
+  end
+
+  # Returns k-mers with count above threshold
+  fn filter_by_count(self, min_count: Int) -> [(String, Int)]
+    requires min_count > 0
+    ensures result.all(|(_, count)| count >= min_count)
+
+    let mut result = []
+
+    let mut i = 0
+    loop
+      if i >= self.counts.len()
+        break
+      end
+
+      if self.counts[i].1 >= min_count
+        result.push(self.counts[i])
+      end
+
+      i = i + 1
+    end
+
+    result
+  end
+
+  # Merges another KMerCounts into this one
+  fn merge(mut self, other: KMerCounts)
+    requires self.k == other.k : "K values must match"
+
+    let mut i = 0
+    loop
+      if i >= other.counts.len()
+        break
+      end
+
+      let (kmer, count) = other.counts[i]
+      self.add(kmer, count)
+
+      i = i + 1
+    end
+  end
+
+  fn to_string(self) -> String
+    "KMerCounts { k: " + self.k.to_string() +
+    ", unique: " + self.unique_count().to_string() +
+    ", total: " + self.total_kmers.to_string() +
+    " }"
+  end
+end
+
+# Counts all k-mers in a sequence
+#
+# Contracts:
+# - requires: k is positive and doesn't exceed sequence length
+# - ensures: result contains k-mers of correct length
+# - ensures: total count equals sequence length - k + 1
+fn count_kmers(sequence: Sequence, k: Int) -> KMerCounts
+  requires k > 0 : "K must be positive"
+  requires k <= sequence.len() : "K cannot exceed sequence length"
+  ensures result.k == k
+  ensures result.total_kmers == sequence.len() - k + 1
+
+  let mut counts = KMerCounts::new(k)
+
+  let mut i = 0
+  loop
+    if i > sequence.len() - k
+      break
+    end
+
+    let kmer = sequence.bases.slice(i, i + k)
+
+    # Skip k-mers containing N
+    if !kmer.contains("N")
+      counts.add(kmer, 1)
+    end
+
+    i = i + 1
+  end
+
+  counts
+end
+
+# Counts k-mers from a raw string
+fn count_kmers_string(bases: String, k: Int) -> KMerCounts
+  requires k > 0
+  requires k <= bases.len()
+  ensures result.k == k
+
+  let upper = bases.to_uppercase()
+  let mut counts = KMerCounts::new(k)
+
+  let mut i = 0
+  loop
+    if i > upper.len() - k
+      break
+    end
+
+    let kmer = upper.slice(i, i + k)
+
+    if !kmer.contains("N")
+      counts.add(kmer, 1)
+    end
+
+    i = i + 1
+  end
+
+  counts
+end
+
+# Returns the n most frequent k-mers
+fn most_frequent_kmers(sequence: Sequence, k: Int, n: Int) -> [(String, Int)]
+  requires k > 0 and k <= sequence.len()
+  requires n > 0
+  ensures result.len() <= n
+
+  let counts = count_kmers(sequence, k)
+  counts.most_frequent(n)
+end
+
+# Generates k-mer spectrum (count distribution)
+# Returns array of (count, number_of_kmers_with_that_count)
+fn kmer_spectrum(sequence: Sequence, k: Int) -> [(Int, Int)]
+  requires k > 0 and k <= sequence.len()
+
+  let counts = count_kmers(sequence, k)
+
+  # Build spectrum
+  let mut spectrum_map = []
+
+  let mut i = 0
+  loop
+    if i >= counts.counts.len()
+      break
+    end
+
+    let count = counts.counts[i].1
+
+    # Find or create entry in spectrum
+    let mut found = false
+    let mut j = 0
+    loop
+      if j >= spectrum_map.len()
+        break
+      end
+
+      if spectrum_map[j].0 == count
+        let (c, n) = spectrum_map[j]
+        spectrum_map[j] = (c, n + 1)
+        found = true
+        break
+      end
+
+      j = j + 1
+    end
+
+    if !found
+      spectrum_map.push((count, 1))
+    end
+
+    i = i + 1
+  end
+
+  # Sort by count
+  let n = spectrum_map.len()
+  let mut k = 0
+  loop
+    if k >= n
+      break
+    end
+
+    let mut l = 0
+    loop
+      if l >= n - k - 1
+        break
+      end
+
+      if spectrum_map[l].0 > spectrum_map[l + 1].0
+        let temp = spectrum_map[l]
+        spectrum_map[l] = spectrum_map[l + 1]
+        spectrum_map[l + 1] = temp
+      end
+
+      l = l + 1
+    end
+
+    k = k + 1
+  end
+
+  spectrum_map
+end
+
+# Finds unique k-mers (occurring exactly once)
+fn find_unique_kmers(sequence: Sequence, k: Int) -> [String]
+  requires k > 0 and k <= sequence.len()
+  ensures result.all(|kmer| kmer.len() == k)
+
+  let counts = count_kmers(sequence, k)
+  let mut unique = []
+
+  let mut i = 0
+  loop
+    if i >= counts.counts.len()
+      break
+    end
+
+    if counts.counts[i].1 == 1
+      unique.push(counts.counts[i].0)
+    end
+
+    i = i + 1
+  end
+
+  unique
+end
+
+# Calculates k-mer distance between two sequences
+# Uses Jaccard distance: 1 - (intersection / union)
+fn kmer_distance(seq1: Sequence, seq2: Sequence, k: Int) -> Float
+  requires k > 0
+  requires k <= seq1.len() and k <= seq2.len()
+  ensures result >= 0.0 and result <= 1.0
+
+  let counts1 = count_kmers(seq1, k)
+  let counts2 = count_kmers(seq2, k)
+
+  # Find intersection and union sizes
+  let mut intersection = 0
+  let mut union = counts1.unique_count()
+
+  let mut i = 0
+  loop
+    if i >= counts2.counts.len()
+      break
+    end
+
+    let kmer = counts2.counts[i].0
+    let count1 = counts1.get_count(kmer)
+
+    if count1 > 0
+      intersection = intersection + 1
+    else
+      union = union + 1
+    end
+
+    i = i + 1
+  end
+
+  if union == 0
+    0.0
+  else
+    1.0 - (intersection.to_float() / union.to_float())
+  end
+end
+
+# Finds shared k-mers between two sequences
+fn shared_kmers(seq1: Sequence, seq2: Sequence, k: Int) -> [String]
+  requires k > 0
+  requires k <= seq1.len() and k <= seq2.len()
+
+  let counts1 = count_kmers(seq1, k)
+  let counts2 = count_kmers(seq2, k)
+
+  let mut shared = []
+
+  let mut i = 0
+  loop
+    if i >= counts1.counts.len()
+      break
+    end
+
+    let kmer = counts1.counts[i].0
+    if counts2.get_count(kmer) > 0
+      shared.push(kmer)
+    end
+
+    i = i + 1
+  end
+
+  shared
+end
+
+# Counts canonical k-mers (considering reverse complements as same)
+fn count_kmers_canonical(sequence: Sequence, k: Int) -> KMerCounts
+  requires k > 0 and k <= sequence.len()
+  ensures result.k == k
+
+  let mut counts = KMerCounts::new(k)
+
+  let mut i = 0
+  loop
+    if i > sequence.len() - k
+      break
+    end
+
+    let kmer_str = sequence.bases.slice(i, i + k)
+
+    if !kmer_str.contains("N")
+      let kmer = KMer::new(kmer_str).unwrap()
+      let canonical = kmer.canonical()
+      counts.add(canonical.sequence, 1)
+    end
+
+    i = i + 1
+  end
+
+  counts
+end
+
+# Estimates genome size using k-mer spectrum (for sequencing data)
+# Uses the peak count method
+fn estimate_genome_size(total_kmers: Int, peak_coverage: Int, k: Int) -> Int
+  requires total_kmers > 0
+  requires peak_coverage > 0
+  requires k > 0
+  ensures result > 0
+
+  total_kmers / peak_coverage
+end
+
+# Finds k-mer positions in a sequence
+fn kmer_positions(sequence: Sequence, kmer: String) -> [Int]
+  requires kmer.len() > 0
+  requires kmer.len() <= sequence.len()
+  ensures result.all(|pos| pos >= 0 and pos <= sequence.len() - kmer.len())
+
+  let upper_kmer = kmer.to_uppercase()
+  let mut positions = []
+
+  let mut i = 0
+  loop
+    if i > sequence.len() - upper_kmer.len()
+      break
+    end
+
+    let sub = sequence.bases.slice(i, i + upper_kmer.len())
+    if sub == upper_kmer
+      positions.push(i)
+    end
+
+    i = i + 1
+  end
+
+  positions
+end

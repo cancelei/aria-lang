@@ -1,0 +1,491 @@
+# BioFlow - Alignment Types
+# Pairwise sequence alignment results and operations
+#
+# Supports representation of both global (Needleman-Wunsch) and
+# local (Smith-Waterman) alignment results.
+
+import core::sequence::{Sequence}
+
+# Alignment direction for traceback
+enum AlignDirection
+  Diagonal   # Match or mismatch
+  Up         # Gap in sequence 2
+  Left       # Gap in sequence 1
+  Stop       # End of alignment (local only)
+end
+
+# Type of alignment
+enum AlignmentType
+  Global     # Needleman-Wunsch style
+  Local      # Smith-Waterman style
+  SemiGlobal # Hybrid approach
+end
+
+# Single alignment operation in CIGAR-like format
+enum AlignmentOp
+  Match(count: Int)      # M - bases match
+  Mismatch(count: Int)   # X - bases don't match
+  Insertion(count: Int)  # I - insertion in query
+  Deletion(count: Int)   # D - deletion in query
+  SoftClip(count: Int)   # S - soft clipping
+  HardClip(count: Int)   # H - hard clipping
+end
+
+# Alignment result between two sequences
+struct Alignment
+  # The aligned sequences (with gaps represented as '-')
+  aligned_seq1: String
+  aligned_seq2: String
+
+  # Alignment score
+  score: Int
+
+  # Start and end positions in original sequences
+  start1: Int
+  end1: Int
+  start2: Int
+  end2: Int
+
+  # Alignment type
+  alignment_type: AlignmentType
+
+  # Identity percentage
+  identity: Float
+
+  # Invariant: aligned sequences must have same length
+  invariant self.aligned_seq1.len() == self.aligned_seq2.len() :
+    "Aligned sequences must have equal length"
+
+  # Invariant: identity must be valid percentage
+  invariant self.identity >= 0.0 and self.identity <= 1.0 :
+    "Identity must be between 0 and 1"
+end
+
+impl Alignment
+  # Creates a new alignment result
+  fn new(
+    aligned_seq1: String,
+    aligned_seq2: String,
+    score: Int,
+    alignment_type: AlignmentType
+  ) -> Result<Alignment, String>
+    requires aligned_seq1.len() > 0 : "Aligned sequences cannot be empty"
+    requires aligned_seq1.len() == aligned_seq2.len() : "Sequences must be same length"
+    ensures result.is_ok() implies result.unwrap().alignment_length() == aligned_seq1.len()
+
+    let identity = Self::calculate_identity(aligned_seq1, aligned_seq2)
+
+    Ok(Alignment {
+      aligned_seq1: aligned_seq1,
+      aligned_seq2: aligned_seq2,
+      score: score,
+      start1: 0,
+      end1: aligned_seq1.len(),
+      start2: 0,
+      end2: aligned_seq2.len(),
+      alignment_type: alignment_type,
+      identity: identity
+    })
+  end
+
+  # Creates an alignment with position information
+  fn with_positions(
+    aligned_seq1: String,
+    aligned_seq2: String,
+    score: Int,
+    start1: Int,
+    end1: Int,
+    start2: Int,
+    end2: Int,
+    alignment_type: AlignmentType
+  ) -> Result<Alignment, String>
+    requires aligned_seq1.len() > 0
+    requires aligned_seq1.len() == aligned_seq2.len()
+    requires start1 >= 0 and end1 > start1
+    requires start2 >= 0 and end2 > start2
+
+    let identity = Self::calculate_identity(aligned_seq1, aligned_seq2)
+
+    Ok(Alignment {
+      aligned_seq1: aligned_seq1,
+      aligned_seq2: aligned_seq2,
+      score: score,
+      start1: start1,
+      end1: end1,
+      start2: start2,
+      end2: end2,
+      alignment_type: alignment_type,
+      identity: identity
+    })
+  end
+
+  # Calculates sequence identity
+  fn calculate_identity(seq1: String, seq2: String) -> Float
+    requires seq1.len() == seq2.len()
+    ensures result >= 0.0 and result <= 1.0
+
+    if seq1.len() == 0
+      return 0.0
+    end
+
+    let mut matches = 0
+    let mut i = 0
+
+    loop
+      if i >= seq1.len()
+        break
+      end
+
+      let c1 = seq1.char_at(i)
+      let c2 = seq2.char_at(i)
+
+      # Count as match if same and not a gap
+      if c1 == c2 and c1 != '-'
+        matches = matches + 1
+      end
+
+      i = i + 1
+    end
+
+    matches.to_float() / seq1.len().to_float()
+  end
+
+  # Returns the length of the alignment
+  fn alignment_length(self) -> Int
+    ensures result > 0
+    self.aligned_seq1.len()
+  end
+
+  # Counts the number of matches
+  fn match_count(self) -> Int
+    ensures result >= 0 and result <= self.alignment_length()
+
+    let mut matches = 0
+    let mut i = 0
+
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      let c1 = self.aligned_seq1.char_at(i)
+      let c2 = self.aligned_seq2.char_at(i)
+
+      if c1 == c2 and c1 != '-'
+        matches = matches + 1
+      end
+
+      i = i + 1
+    end
+
+    matches
+  end
+
+  # Counts the number of mismatches
+  fn mismatch_count(self) -> Int
+    ensures result >= 0 and result <= self.alignment_length()
+
+    let mut mismatches = 0
+    let mut i = 0
+
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      let c1 = self.aligned_seq1.char_at(i)
+      let c2 = self.aligned_seq2.char_at(i)
+
+      if c1 != c2 and c1 != '-' and c2 != '-'
+        mismatches = mismatches + 1
+      end
+
+      i = i + 1
+    end
+
+    mismatches
+  end
+
+  # Counts the number of gaps in sequence 1
+  fn gaps_seq1(self) -> Int
+    ensures result >= 0 and result <= self.alignment_length()
+
+    let mut gaps = 0
+    let mut i = 0
+
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      if self.aligned_seq1.char_at(i) == '-'
+        gaps = gaps + 1
+      end
+
+      i = i + 1
+    end
+
+    gaps
+  end
+
+  # Counts the number of gaps in sequence 2
+  fn gaps_seq2(self) -> Int
+    ensures result >= 0 and result <= self.alignment_length()
+
+    let mut gaps = 0
+    let mut i = 0
+
+    loop
+      if i >= self.aligned_seq2.len()
+        break
+      end
+
+      if self.aligned_seq2.char_at(i) == '-'
+        gaps = gaps + 1
+      end
+
+      i = i + 1
+    end
+
+    gaps
+  end
+
+  # Returns total number of gaps
+  fn total_gaps(self) -> Int
+    ensures result >= 0 and result <= self.alignment_length() * 2
+
+    self.gaps_seq1() + self.gaps_seq2()
+  end
+
+  # Counts gap openings (start of gap regions)
+  fn gap_openings(self) -> Int
+    ensures result >= 0
+
+    let mut openings = 0
+    let mut in_gap1 = false
+    let mut in_gap2 = false
+    let mut i = 0
+
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      let c1 = self.aligned_seq1.char_at(i)
+      let c2 = self.aligned_seq2.char_at(i)
+
+      # Check gap opening in seq1
+      if c1 == '-' and !in_gap1
+        openings = openings + 1
+        in_gap1 = true
+      else if c1 != '-'
+        in_gap1 = false
+      end
+
+      # Check gap opening in seq2
+      if c2 == '-' and !in_gap2
+        openings = openings + 1
+        in_gap2 = true
+      else if c2 != '-'
+        in_gap2 = false
+      end
+
+      i = i + 1
+    end
+
+    openings
+  end
+
+  # Calculates coverage of the alignment over sequence 1
+  fn coverage_seq1(self, original_len: Int) -> Float
+    requires original_len > 0
+    ensures result >= 0.0 and result <= 1.0
+
+    let aligned_bases = self.alignment_length() - self.gaps_seq1()
+    aligned_bases.to_float() / original_len.to_float()
+  end
+
+  # Calculates coverage of the alignment over sequence 2
+  fn coverage_seq2(self, original_len: Int) -> Float
+    requires original_len > 0
+    ensures result >= 0.0 and result <= 1.0
+
+    let aligned_bases = self.alignment_length() - self.gaps_seq2()
+    aligned_bases.to_float() / original_len.to_float()
+  end
+
+  # Generates CIGAR string representation
+  fn to_cigar(self) -> String
+    let mut cigar = ""
+    let mut current_op = ""
+    let mut count = 0
+
+    let mut i = 0
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      let c1 = self.aligned_seq1.char_at(i)
+      let c2 = self.aligned_seq2.char_at(i)
+
+      let op = if c1 == '-'
+        "I"  # Insertion
+      else if c2 == '-'
+        "D"  # Deletion
+      else if c1 == c2
+        "M"  # Match
+      else
+        "X"  # Mismatch
+      end
+
+      if op == current_op
+        count = count + 1
+      else
+        if count > 0
+          cigar = cigar + count.to_string() + current_op
+        end
+        current_op = op
+        count = 1
+      end
+
+      i = i + 1
+    end
+
+    # Add final operation
+    if count > 0
+      cigar = cigar + count.to_string() + current_op
+    end
+
+    cigar
+  end
+
+  # Formats alignment for display
+  fn format(self) -> String
+    let mut output = ""
+
+    # Build match line
+    let mut match_line = ""
+    let mut i = 0
+    loop
+      if i >= self.aligned_seq1.len()
+        break
+      end
+
+      let c1 = self.aligned_seq1.char_at(i)
+      let c2 = self.aligned_seq2.char_at(i)
+
+      if c1 == c2 and c1 != '-'
+        match_line = match_line + "|"
+      else if c1 == '-' or c2 == '-'
+        match_line = match_line + " "
+      else
+        match_line = match_line + "."
+      end
+
+      i = i + 1
+    end
+
+    output = "Seq1: " + self.aligned_seq1 + "\n"
+    output = output + "      " + match_line + "\n"
+    output = output + "Seq2: " + self.aligned_seq2 + "\n"
+    output = output + "Score: " + self.score.to_string() + "\n"
+    output = output + "Identity: " + (self.identity * 100.0).to_string() + "%\n"
+    output = output + "CIGAR: " + self.to_cigar()
+
+    output
+  end
+
+  # Returns a string representation
+  fn to_string(self) -> String
+    "Alignment { score: " + self.score.to_string() +
+    ", identity: " + (self.identity * 100.0).to_string() + "%" +
+    ", length: " + self.alignment_length().to_string() +
+    " }"
+  end
+end
+
+# Alignment statistics summary
+struct AlignmentStats
+  alignment_length: Int
+  matches: Int
+  mismatches: Int
+  gaps: Int
+  gap_openings: Int
+  identity: Float
+  score: Int
+end
+
+impl AlignmentStats
+  # Creates stats from an alignment
+  fn from_alignment(alignment: Alignment) -> AlignmentStats
+    AlignmentStats {
+      alignment_length: alignment.alignment_length(),
+      matches: alignment.match_count(),
+      mismatches: alignment.mismatch_count(),
+      gaps: alignment.total_gaps(),
+      gap_openings: alignment.gap_openings(),
+      identity: alignment.identity,
+      score: alignment.score
+    }
+  end
+
+  fn to_string(self) -> String
+    "AlignmentStats { length: " + self.alignment_length.to_string() +
+    ", matches: " + self.matches.to_string() +
+    ", mismatches: " + self.mismatches.to_string() +
+    ", gaps: " + self.gaps.to_string() +
+    ", identity: " + (self.identity * 100.0).to_string() + "%" +
+    " }"
+  end
+end
+
+# Alignment result with multiple alternative alignments
+struct AlignmentResult
+  primary: Alignment
+  alternatives: [Alignment]
+  query_id: Option<String>
+  target_id: Option<String>
+end
+
+impl AlignmentResult
+  # Creates a result with just a primary alignment
+  fn single(alignment: Alignment) -> AlignmentResult
+    AlignmentResult {
+      primary: alignment,
+      alternatives: [],
+      query_id: None,
+      target_id: None
+    }
+  end
+
+  # Creates a result with metadata
+  fn with_ids(
+    alignment: Alignment,
+    query_id: String,
+    target_id: String
+  ) -> AlignmentResult
+    AlignmentResult {
+      primary: alignment,
+      alternatives: [],
+      query_id: Some(query_id),
+      target_id: Some(target_id)
+    }
+  end
+
+  # Adds an alternative alignment
+  fn add_alternative(mut self, alignment: Alignment)
+    self.alternatives.push(alignment)
+  end
+
+  # Returns the best score
+  fn best_score(self) -> Int
+    self.primary.score
+  end
+
+  # Returns number of alignments (primary + alternatives)
+  fn count(self) -> Int
+    ensures result >= 1
+    1 + self.alternatives.len()
+  end
+end

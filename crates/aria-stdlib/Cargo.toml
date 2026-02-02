@@ -1,0 +1,15 @@
+[package]
+name = "aria-stdlib"
+description = "Standard library for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-ast = { path = "../aria-ast" }
+aria-parser = { path = "../aria-parser" }
+aria-lexer = { path = "../aria-lexer" }
+smol_str = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

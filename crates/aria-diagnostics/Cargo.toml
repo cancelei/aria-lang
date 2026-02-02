@@ -1,0 +1,16 @@
+[package]
+name = "aria-diagnostics"
+description = "Error message and diagnostic system for the Aria programming language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+termcolor.workspace = true
+unicode-width.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

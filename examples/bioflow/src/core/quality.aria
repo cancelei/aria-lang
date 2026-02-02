@@ -1,0 +1,520 @@
+# BioFlow - Quality Scores
+# Phred quality scores for sequencing reads
+#
+# Phred quality scores are logarithmically related to base-calling error probabilities:
+# Q = -10 * log10(P_error)
+#
+# Common thresholds:
+# Q10 = 90% accuracy
+# Q20 = 99% accuracy
+# Q30 = 99.9% accuracy (typical threshold for "high quality")
+# Q40 = 99.99% accuracy
+
+# Phred score bounds
+const PHRED_MIN: Int = 0
+const PHRED_MAX: Int = 40
+
+# Common quality thresholds
+const Q_LOW: Int = 10      # 90% accuracy
+const Q_MEDIUM: Int = 20   # 99% accuracy
+const Q_HIGH: Int = 30     # 99.9% accuracy
+const Q_EXCELLENT: Int = 40 # 99.99% accuracy
+
+# Error types for quality operations
+enum QualityError
+  EmptyScores
+  ScoreOutOfRange(position: Int, score: Int)
+  LengthMismatch(expected: Int, actual: Int)
+  InvalidEncoding(char: Char)
+end
+
+# Quality category enumeration
+enum QualityCategory
+  Poor        # Q < 10
+  Low         # 10 <= Q < 20
+  Medium      # 20 <= Q < 30
+  High        # 30 <= Q < 40
+  Excellent   # Q >= 40
+end
+
+# Quality scores for a sequencing read
+# Each score corresponds to a base in a sequence
+struct QualityScores
+  scores: [Int]
+
+  # Invariant: scores must be non-empty
+  invariant self.scores.len() > 0 : "Quality scores cannot be empty"
+
+  # Invariant: all scores must be in valid Phred range
+  invariant self.all_in_range() : "All scores must be in valid Phred range (0-40)"
+end
+
+impl QualityScores
+  # Creates new quality scores from an array of integers
+  fn new(scores: [Int]) -> Result<QualityScores, QualityError>
+    requires scores.len() > 0 : "Scores cannot be empty"
+    ensures result.is_ok() implies result.unwrap().len() == scores.len()
+
+    # Validate all scores are in range
+    let mut i = 0
+    loop
+      if i >= scores.len()
+        break
+      end
+
+      let score = scores[i]
+      if score < PHRED_MIN or score > PHRED_MAX
+        return Err(QualityError::ScoreOutOfRange(position: i, score: score))
+      end
+
+      i = i + 1
+    end
+
+    Ok(QualityScores { scores: scores })
+  end
+
+  # Creates quality scores from a Phred+33 encoded string (Illumina 1.8+)
+  # Each ASCII character maps to a quality score: Q = ord(char) - 33
+  fn from_phred33(encoded: String) -> Result<QualityScores, QualityError>
+    requires encoded.len() > 0 : "Encoded string cannot be empty"
+    ensures result.is_ok() implies result.unwrap().len() == encoded.len()
+
+    let mut scores = []
+    let mut i = 0
+
+    loop
+      if i >= encoded.len()
+        break
+      end
+
+      let c = encoded.char_at(i)
+      let ascii_val = c.to_int()
+
+      # Phred+33 encoding: valid range is '!' (33) to 'J' (74) for Q0-Q41
+      if ascii_val < 33 or ascii_val > 74
+        return Err(QualityError::InvalidEncoding(char: c))
+      end
+
+      let score = ascii_val - 33
+      if score > PHRED_MAX
+        return Err(QualityError::ScoreOutOfRange(position: i, score: score))
+      end
+
+      scores.push(score)
+      i = i + 1
+    end
+
+    Ok(QualityScores { scores: scores })
+  end
+
+  # Creates quality scores from a Phred+64 encoded string (older Illumina)
+  # Each ASCII character maps to a quality score: Q = ord(char) - 64
+  fn from_phred64(encoded: String) -> Result<QualityScores, QualityError>
+    requires encoded.len() > 0 : "Encoded string cannot be empty"
+    ensures result.is_ok() implies result.unwrap().len() == encoded.len()
+
+    let mut scores = []
+    let mut i = 0
+
+    loop
+      if i >= encoded.len()
+        break
+      end
+
+      let c = encoded.char_at(i)
+      let ascii_val = c.to_int()
+
+      # Phred+64 encoding: valid range is '@' (64) to 'h' (104) for Q0-Q40
+      if ascii_val < 64 or ascii_val > 104
+        return Err(QualityError::InvalidEncoding(char: c))
+      end
+
+      let score = ascii_val - 64
+      if score > PHRED_MAX
+        return Err(QualityError::ScoreOutOfRange(position: i, score: score))
+      end
+
+      scores.push(score)
+      i = i + 1
+    end
+
+    Ok(QualityScores { scores: scores })
+  end
+
+  # Checks if all scores are within the valid Phred range
+  fn all_in_range(self) -> Bool
+    let mut i = 0
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      let score = self.scores[i]
+      if score < PHRED_MIN or score > PHRED_MAX
+        return false
+      end
+
+      i = i + 1
+    end
+    true
+  end
+
+  # Returns the number of quality scores
+  fn len(self) -> Int
+    ensures result > 0
+    self.scores.len()
+  end
+
+  # Gets the quality score at a specific position
+  fn score_at(self, index: Int) -> Option<Int>
+    requires index >= 0 : "Index must be non-negative"
+
+    if index >= self.scores.len()
+      None
+    else
+      Some(self.scores[index])
+    end
+  end
+
+  # Calculates the average quality score
+  fn average(self) -> Float
+    requires self.scores.len() > 0
+    ensures result >= 0.0 and result <= PHRED_MAX.to_float()
+
+    let mut sum = 0
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      sum = sum + self.scores[i]
+      i = i + 1
+    end
+
+    sum.to_float() / self.scores.len().to_float()
+  end
+
+  # Calculates the median quality score
+  fn median(self) -> Int
+    requires self.scores.len() > 0
+    ensures result >= PHRED_MIN and result <= PHRED_MAX
+
+    # Sort scores
+    let sorted = self.sorted_scores()
+    let mid = sorted.len() / 2
+
+    if sorted.len() % 2 == 0
+      (sorted[mid - 1] + sorted[mid]) / 2
+    else
+      sorted[mid]
+    end
+  end
+
+  # Returns a sorted copy of the scores
+  fn sorted_scores(self) -> [Int]
+    ensures result.len() == self.scores.len()
+
+    # Simple bubble sort for demonstration
+    let mut sorted = self.scores.clone()
+    let n = sorted.len()
+
+    let mut i = 0
+    loop
+      if i >= n
+        break
+      end
+
+      let mut j = 0
+      loop
+        if j >= n - i - 1
+          break
+        end
+
+        if sorted[j] > sorted[j + 1]
+          let temp = sorted[j]
+          sorted[j] = sorted[j + 1]
+          sorted[j + 1] = temp
+        end
+
+        j = j + 1
+      end
+
+      i = i + 1
+    end
+
+    sorted
+  end
+
+  # Returns the minimum quality score
+  fn min(self) -> Int
+    requires self.scores.len() > 0
+    ensures result >= PHRED_MIN and result <= PHRED_MAX
+    ensures self.scores.any(|s| s == result)
+
+    let mut min_score = self.scores[0]
+    let mut i = 1
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      if self.scores[i] < min_score
+        min_score = self.scores[i]
+      end
+
+      i = i + 1
+    end
+
+    min_score
+  end
+
+  # Returns the maximum quality score
+  fn max(self) -> Int
+    requires self.scores.len() > 0
+    ensures result >= PHRED_MIN and result <= PHRED_MAX
+    ensures self.scores.any(|s| s == result)
+
+    let mut max_score = self.scores[0]
+    let mut i = 1
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      if self.scores[i] > max_score
+        max_score = self.scores[i]
+      end
+
+      i = i + 1
+    end
+
+    max_score
+  end
+
+  # Counts scores above a threshold
+  fn count_above(self, threshold: Int) -> Int
+    requires threshold >= PHRED_MIN and threshold <= PHRED_MAX
+    ensures result >= 0 and result <= self.len()
+
+    let mut count = 0
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      if self.scores[i] > threshold
+        count = count + 1
+      end
+
+      i = i + 1
+    end
+
+    count
+  end
+
+  # Counts scores at or above a threshold
+  fn count_at_or_above(self, threshold: Int) -> Int
+    requires threshold >= PHRED_MIN and threshold <= PHRED_MAX
+    ensures result >= 0 and result <= self.len()
+
+    let mut count = 0
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      if self.scores[i] >= threshold
+        count = count + 1
+      end
+
+      i = i + 1
+    end
+
+    count
+  end
+
+  # Calculates the proportion of high-quality bases (Q >= 30)
+  fn high_quality_ratio(self) -> Float
+    ensures result >= 0.0 and result <= 1.0
+
+    let high_count = self.count_at_or_above(Q_HIGH)
+    high_count.to_float() / self.scores.len().to_float()
+  end
+
+  # Categorizes the overall quality of the read
+  fn categorize(self) -> QualityCategory
+    let avg = self.average()
+
+    if avg >= Q_EXCELLENT.to_float()
+      QualityCategory::Excellent
+    else if avg >= Q_HIGH.to_float()
+      QualityCategory::High
+    else if avg >= Q_MEDIUM.to_float()
+      QualityCategory::Medium
+    else if avg >= Q_LOW.to_float()
+      QualityCategory::Low
+    else
+      QualityCategory::Poor
+    end
+  end
+
+  # Converts a Phred score to error probability
+  fn score_to_probability(score: Int) -> Float
+    requires score >= PHRED_MIN and score <= PHRED_MAX
+    ensures result >= 0.0 and result <= 1.0
+
+    # P_error = 10^(-Q/10)
+    10.0.pow(-score.to_float() / 10.0)
+  end
+
+  # Converts an error probability to Phred score
+  fn probability_to_score(prob: Float) -> Int
+    requires prob > 0.0 and prob <= 1.0
+    ensures result >= PHRED_MIN
+
+    # Q = -10 * log10(P_error)
+    let q = -10.0 * prob.log10()
+
+    # Clamp to valid range
+    if q < PHRED_MIN.to_float()
+      PHRED_MIN
+    else if q > PHRED_MAX.to_float()
+      PHRED_MAX
+    else
+      q.round().to_int()
+    end
+  end
+
+  # Returns a subsequence of quality scores
+  fn slice(self, start: Int, end: Int) -> Result<QualityScores, QualityError>
+    requires start >= 0 : "Start index must be non-negative"
+    requires end > start : "End must be greater than start"
+    requires end <= self.len() : "End must not exceed length"
+    ensures result.is_ok() implies result.unwrap().len() == end - start
+
+    let mut sliced = []
+    let mut i = start
+
+    loop
+      if i >= end
+        break
+      end
+
+      sliced.push(self.scores[i])
+      i = i + 1
+    end
+
+    QualityScores::new(sliced)
+  end
+
+  # Encodes quality scores to Phred+33 format
+  fn to_phred33(self) -> String
+    ensures result.len() == self.len()
+
+    let mut encoded = ""
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      let ascii_val = self.scores[i] + 33
+      let c = Char::from_int(ascii_val)
+      encoded = encoded + c.to_string()
+
+      i = i + 1
+    end
+
+    encoded
+  end
+
+  # Encodes quality scores to Phred+64 format
+  fn to_phred64(self) -> String
+    ensures result.len() == self.len()
+
+    let mut encoded = ""
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      let ascii_val = self.scores[i] + 64
+      let c = Char::from_int(ascii_val)
+      encoded = encoded + c.to_string()
+
+      i = i + 1
+    end
+
+    encoded
+  end
+
+  # Finds positions of low-quality bases
+  fn low_quality_positions(self, threshold: Int) -> [Int]
+    requires threshold >= PHRED_MIN and threshold <= PHRED_MAX
+    ensures result.all(|pos| pos >= 0 and pos < self.len())
+
+    let mut positions = []
+    let mut i = 0
+
+    loop
+      if i >= self.scores.len()
+        break
+      end
+
+      if self.scores[i] < threshold
+        positions.push(i)
+      end
+
+      i = i + 1
+    end
+
+    positions
+  end
+
+  # Calculates quality statistics
+  fn statistics(self) -> QualityStats
+    QualityStats {
+      count: self.len(),
+      min: self.min(),
+      max: self.max(),
+      mean: self.average(),
+      median: self.median(),
+      high_quality_ratio: self.high_quality_ratio(),
+      category: self.categorize()
+    }
+  end
+end
+
+# Quality statistics summary
+struct QualityStats
+  count: Int
+  min: Int
+  max: Int
+  mean: Float
+  median: Int
+  high_quality_ratio: Float
+  category: QualityCategory
+end
+
+impl QualityStats
+  fn to_string(self) -> String
+    "QualityStats { count: " + self.count.to_string() +
+    ", min: " + self.min.to_string() +
+    ", max: " + self.max.to_string() +
+    ", mean: " + self.mean.to_string() +
+    ", median: " + self.median.to_string() +
+    ", high_quality_ratio: " + self.high_quality_ratio.to_string() +
+    " }"
+  end
+end

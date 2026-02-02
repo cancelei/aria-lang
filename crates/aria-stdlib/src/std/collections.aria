@@ -1,0 +1,301 @@
+# Aria Standard Library - Collections
+# List, Map, and Set data structures
+
+# Type alias for List (Array)
+type List<T> = [T]
+
+impl List<T>
+  # Creates a new empty list
+  fn new() -> List<T>
+    []
+  end
+
+  # Returns the number of elements
+  fn len(self) -> Int
+    # Native builtin
+    len(self)
+  end
+
+  # Returns true if the list is empty
+  fn is_empty(self) -> Bool
+    self.len() == 0
+  end
+
+  # Adds an element to the end
+  fn push(mut self, value: T)
+    # TODO: Native implementation
+  end
+
+  # Removes and returns the last element
+  fn pop(mut self) -> Option<T>
+    # TODO: Native implementation
+    None
+  end
+
+  # Gets element at index
+  fn get(self, index: Int) -> Option<T>
+    # TODO: Bounds checking in native code
+    if index >= 0 && index < self.len()
+      Some(self[index])
+    else
+      None
+    end
+  end
+
+  # Returns the first element
+  fn first(self) -> Option<T>
+    if self.is_empty()
+      None
+    else
+      Some(self[0])
+    end
+  end
+
+  # Returns the last element
+  fn last(self) -> Option<T>
+    if self.is_empty()
+      None
+    else
+      Some(self[self.len() - 1])
+    end
+  end
+
+  # Checks if the list contains an element
+  fn contains(self, value: T) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Returns the index of the first occurrence of value
+  fn index_of(self, value: T) -> Option<Int>
+    # TODO: Native implementation
+    None
+  end
+
+  # Reverses the list in place
+  fn reverse(mut self)
+    # TODO: Native implementation
+  end
+
+  # Sorts the list in place
+  fn sort(mut self)
+    # TODO: Native implementation
+  end
+
+  # Maps each element using function f
+  fn map(self, f: Fn(T) -> U) -> List<U>
+    [f(x) for x in self]
+  end
+
+  # Filters elements using predicate
+  fn filter(self, predicate: Fn(T) -> Bool) -> List<T>
+    [x for x in self if predicate(x)]
+  end
+
+  # Reduces the list to a single value
+  fn fold(self, initial: U, f: Fn(U, T) -> U) -> U
+    let mut acc = initial
+    for x in self
+      acc = f(acc, x)
+    end
+    acc
+  end
+
+  # Returns true if any element matches the predicate
+  fn any(self, predicate: Fn(T) -> Bool) -> Bool
+    for x in self
+      if predicate(x)
+        return true
+      end
+    end
+    false
+  end
+
+  # Returns true if all elements match the predicate
+  fn all(self, predicate: Fn(T) -> Bool) -> Bool
+    for x in self
+      if !predicate(x)
+        return false
+      end
+    end
+    true
+  end
+
+  # Flattens a list of lists
+  fn flatten(self) -> List<T>
+    # TODO: Native implementation
+    []
+  end
+
+  # Takes the first n elements
+  fn take(self, n: Int) -> List<T>
+    # TODO: Native implementation
+    []
+  end
+
+  # Skips the first n elements
+  fn skip(self, n: Int) -> List<T>
+    # TODO: Native implementation
+    []
+  end
+
+  # Returns a slice of the list
+  fn slice(self, start: Int, end: Int) -> List<T>
+    # TODO: Native implementation
+    []
+  end
+end
+
+# Map (Dictionary) type
+type Map<K, V> = {K: V}
+
+impl Map<K, V>
+  # Creates a new empty map
+  fn new() -> Map<K, V>
+    {}
+  end
+
+  # Returns the number of key-value pairs
+  fn len(self) -> Int
+    # Native builtin
+    len(self)
+  end
+
+  # Returns true if the map is empty
+  fn is_empty(self) -> Bool
+    self.len() == 0
+  end
+
+  # Gets the value for a key
+  fn get(self, key: K) -> Option<V>
+    # TODO: Native implementation
+    None
+  end
+
+  # Inserts a key-value pair
+  fn insert(mut self, key: K, value: V)
+    self[key] = value
+  end
+
+  # Removes a key and returns its value
+  fn remove(mut self, key: K) -> Option<V>
+    # TODO: Native implementation
+    None
+  end
+
+  # Checks if the map contains a key
+  fn contains_key(self, key: K) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Returns a list of all keys
+  fn keys(self) -> List<K>
+    # TODO: Native implementation
+    []
+  end
+
+  # Returns a list of all values
+  fn values(self) -> List<V>
+    # TODO: Native implementation
+    []
+  end
+
+  # Returns a list of all key-value pairs
+  fn entries(self) -> List<(K, V)>
+    # TODO: Native implementation
+    []
+  end
+
+  # Clears all entries
+  fn clear(mut self)
+    # TODO: Native implementation
+  end
+
+  # Maps values using function f
+  fn map_values(self, f: Fn(V) -> U) -> Map<K, U>
+    # TODO: Native implementation
+    {}
+  end
+
+  # Filters entries using predicate
+  fn filter(self, predicate: Fn(K, V) -> Bool) -> Map<K, V>
+    # TODO: Native implementation
+    {}
+  end
+end
+
+# Set type (implemented as Map with Unit values)
+type Set<T> = Map<T, ()>
+
+impl Set<T>
+  # Creates a new empty set
+  fn new() -> Set<T>
+    {}
+  end
+
+  # Returns the number of elements
+  fn len(self) -> Int
+    # Native builtin
+    len(self)
+  end
+
+  # Returns true if the set is empty
+  fn is_empty(self) -> Bool
+    self.len() == 0
+  end
+
+  # Adds an element to the set
+  fn insert(mut self, value: T) -> Bool
+    let had_value = self.contains(value)
+    self[value] = ()
+    !had_value
+  end
+
+  # Removes an element from the set
+  fn remove(mut self, value: T) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Checks if the set contains an element
+  fn contains(self, value: T) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Clears all elements
+  fn clear(mut self)
+    # TODO: Native implementation
+  end
+
+  # Returns the union of two sets
+  fn union(self, other: Set<T>) -> Set<T>
+    # TODO: Native implementation
+    {}
+  end
+
+  # Returns the intersection of two sets
+  fn intersection(self, other: Set<T>) -> Set<T>
+    # TODO: Native implementation
+    {}
+  end
+
+  # Returns the difference of two sets
+  fn difference(self, other: Set<T>) -> Set<T>
+    # TODO: Native implementation
+    {}
+  end
+
+  # Checks if this set is a subset of another
+  fn is_subset(self, other: Set<T>) -> Bool
+    # TODO: Native implementation
+    false
+  end
+
+  # Checks if this set is a superset of another
+  fn is_superset(self, other: Set<T>) -> Bool
+    # TODO: Native implementation
+    false
+  end
+end

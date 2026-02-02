@@ -1,0 +1,62 @@
+// Test higher-order collection operations
+// Note: These require function pointer support, which is a future enhancement
+
+fn main() {
+    println("Higher-Order Collection Operations Demo");
+    println("========================================\n");
+
+    // Test data
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    println("Original array: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n");
+
+    // Note: These functions will not work until function pointers are fully implemented
+    // For now, they serve as documentation of the planned API
+
+    println("=== Planned Operations ===\n");
+
+    println("map(numbers, double) - Transform each element");
+    println("Expected: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]\n");
+
+    println("filter(numbers, is_even) - Keep only even numbers");
+    println("Expected: [2, 4, 6, 8, 10]\n");
+
+    println("reduce(numbers, add, 0) - Sum all elements");
+    println("Expected: 55\n");
+
+    println("find(numbers, greater_than_5) - Find first > 5");
+    println("Expected: Some(6)\n");
+
+    println("any(numbers, is_even) - Check if any are even");
+    println("Expected: true\n");
+
+    println("all(numbers, is_positive) - Check if all are positive");
+    println("Expected: true\n");
+
+    println("\n=== Current Limitation ===");
+    println("Higher-order functions (map, filter, reduce, find, any, all)");
+    println("require function pointer support, which is planned for a future");
+    println("release once generic types (Task #6) are complete.");
+    println("\nLower-level operations (slice, concat) are fully functional!");
+}
+
+// Example predicate functions (for documentation)
+fn is_even(x: Int) -> Bool {
+    x % 2 == 0
+}
+
+fn is_positive(x: Int) -> Bool {
+    x > 0
+}
+
+fn greater_than_5(x: Int) -> Bool {
+    x > 5
+}
+
+fn double(x: Int) -> Int {
+    x * 2
+}
+
+fn add(a: Int, b: Int) -> Int {
+    a + b
+}

@@ -1,0 +1,357 @@
+# Aria Standard Library - Formatting Module
+# String formatting and display traits
+
+# Trait for types that can be displayed to users
+trait Display
+  fn fmt(self) -> String
+end
+
+# Trait for debug representation
+trait Debug
+  fn debug_fmt(self) -> String
+end
+
+# Format specification for numbers and strings
+struct FormatSpec
+  width: Option<Int>        # Minimum width
+  precision: Option<Int>    # Decimal places for floats
+  fill: Char                # Fill character for padding
+  alignment: Alignment      # Left, right, or center
+  sign: SignDisplay         # Always show sign, negative only, etc.
+end
+
+enum Alignment
+  Left
+  Right
+  Center
+end
+
+enum SignDisplay
+  OnlyNegative   # Only show minus sign
+  Always         # Always show + or -
+  SpacePositive  # Space for positive, minus for negative
+end
+
+impl FormatSpec
+  fn default() -> FormatSpec
+    FormatSpec {
+      width: None,
+      precision: None,
+      fill: ' ',
+      alignment: Alignment::Right,
+      sign: SignDisplay::OnlyNegative
+    }
+  end
+
+  fn with_width(self, w: Int) -> FormatSpec
+    FormatSpec { width: Some(w), ..self }
+  end
+
+  fn with_precision(self, p: Int) -> FormatSpec
+    FormatSpec { precision: Some(p), ..self }
+  end
+
+  fn with_fill(self, c: Char) -> FormatSpec
+    FormatSpec { fill: c, ..self }
+  end
+
+  fn left_aligned(self) -> FormatSpec
+    FormatSpec { alignment: Alignment::Left, ..self }
+  end
+
+  fn center_aligned(self) -> FormatSpec
+    FormatSpec { alignment: Alignment::Center, ..self }
+  end
+
+  fn right_aligned(self) -> FormatSpec
+    FormatSpec { alignment: Alignment::Right, ..self }
+  end
+end
+
+# Pads a string to a minimum width
+fn pad(s: String, width: Int, fill: Char, alignment: Alignment) -> String
+  let len = s.len()
+  if len >= width
+    s
+  else
+    let padding = width - len
+    match alignment
+      Alignment::Left -> s + fill.to_string().repeat(padding)
+      Alignment::Right -> fill.to_string().repeat(padding) + s
+      Alignment::Center ->
+        let left_pad = padding / 2
+        let right_pad = padding - left_pad
+        fill.to_string().repeat(left_pad) + s + fill.to_string().repeat(right_pad)
+    end
+  end
+end
+
+# Formats an integer with the given spec
+fn format_int(n: Int, spec: FormatSpec) -> String
+  let sign = if n < 0
+    "-"
+  else
+    match spec.sign
+      SignDisplay::Always -> "+"
+      SignDisplay::SpacePositive -> " "
+      SignDisplay::OnlyNegative -> ""
+    end
+  end
+
+  let abs_n = if n < 0 { -n } else { n }
+  let digits = abs_n.to_string()
+  let result = sign + digits
+
+  match spec.width
+    Some(w) -> pad(result, w, spec.fill, spec.alignment)
+    None -> result
+  end
+end
+
+# Formats a float with the given spec
+fn format_float(f: Float, spec: FormatSpec) -> String
+  let sign = if f < 0.0
+    "-"
+  else
+    match spec.sign
+      SignDisplay::Always -> "+"
+      SignDisplay::SpacePositive -> " "
+      SignDisplay::OnlyNegative -> ""
+    end
+  end
+
+  let abs_f = if f < 0.0 { -f } else { f }
+
+  # Format with precision
+  let formatted = match spec.precision
+    Some(p) ->
+      # TODO: Implement proper decimal formatting
+      abs_f.to_string()
+    None -> abs_f.to_string()
+  end
+
+  let result = sign + formatted
+
+  match spec.width
+    Some(w) -> pad(result, w, spec.fill, spec.alignment)
+    None -> result
+  end
+end
+
+# String builder for efficient string concatenation
+struct StringBuilder
+  parts: [String]
+end
+
+impl StringBuilder
+  fn new() -> StringBuilder
+    StringBuilder { parts: [] }
+  end
+
+  fn push(mut self, s: String) -> StringBuilder
+    self.parts.push(s)
+    self
+  end
+
+  fn push_char(mut self, c: Char) -> StringBuilder
+    self.parts.push(c.to_string())
+    self
+  end
+
+  fn push_line(mut self, s: String) -> StringBuilder
+    self.parts.push(s)
+    self.parts.push("\n")
+    self
+  end
+
+  fn build(self) -> String
+    String::join(self.parts, "")
+  end
+
+  fn len(self) -> Int
+    self.parts.fold(0, |acc, s| acc + s.len())
+  end
+
+  fn is_empty(self) -> Bool
+    self.parts.is_empty()
+  end
+
+  fn clear(mut self)
+    self.parts = []
+  end
+end
+
+# Indentation helper for pretty-printing
+struct Indenter
+  level: Int
+  indent_str: String
+end
+
+impl Indenter
+  fn new() -> Indenter
+    Indenter { level: 0, indent_str: "  " }
+  end
+
+  fn with_indent(indent: String) -> Indenter
+    Indenter { level: 0, indent_str: indent }
+  end
+
+  fn indent(mut self) -> Indenter
+    self.level = self.level + 1
+    self
+  end
+
+  fn dedent(mut self) -> Indenter
+    if self.level > 0
+      self.level = self.level - 1
+    end
+    self
+  end
+
+  fn prefix(self) -> String
+    self.indent_str.repeat(self.level)
+  end
+
+  fn line(self, content: String) -> String
+    self.prefix() + content
+  end
+end
+
+# Format writer trait
+trait Write
+  fn write_str(mut self, s: String) -> Result<(), String>
+  fn write_char(mut self, c: Char) -> Result<(), String>
+end
+
+impl Write for StringBuilder
+  fn write_str(mut self, s: String) -> Result<(), String>
+    self.push(s)
+    Ok(())
+  end
+
+  fn write_char(mut self, c: Char) -> Result<(), String>
+    self.push_char(c)
+    Ok(())
+  end
+end
+
+# Hexadecimal formatting
+fn to_hex(n: Int) -> String
+  if n == 0
+    "0"
+  else
+    let hex_chars = "0123456789abcdef"
+    let mut result = ""
+    let mut value = if n < 0 { -n } else { n }
+
+    while value > 0
+      let digit = value % 16
+      result = hex_chars.char_at(digit).unwrap().to_string() + result
+      value = value / 16
+    end
+
+    if n < 0
+      "-" + result
+    else
+      result
+    end
+  end
+end
+
+# Binary formatting
+fn to_binary(n: Int) -> String
+  if n == 0
+    "0"
+  else
+    let mut result = ""
+    let mut value = if n < 0 { -n } else { n }
+
+    while value > 0
+      result = (if value % 2 == 0 { "0" } else { "1" }) + result
+      value = value / 2
+    end
+
+    if n < 0
+      "-" + result
+    else
+      result
+    end
+  end
+end
+
+# Octal formatting
+fn to_octal(n: Int) -> String
+  if n == 0
+    "0"
+  else
+    let mut result = ""
+    let mut value = if n < 0 { -n } else { n }
+
+    while value > 0
+      result = (value % 8).to_string() + result
+      value = value / 8
+    end
+
+    if n < 0
+      "-" + result
+    else
+      result
+    end
+  end
+end
+
+# Display implementations for built-in types
+impl Display for Int
+  fn fmt(self) -> String
+    self.to_string()
+  end
+end
+
+impl Display for Float
+  fn fmt(self) -> String
+    self.to_string()
+  end
+end
+
+impl Display for Bool
+  fn fmt(self) -> String
+    if self { "true" } else { "false" }
+  end
+end
+
+impl Display for String
+  fn fmt(self) -> String
+    self
+  end
+end
+
+impl Debug for Int
+  fn debug_fmt(self) -> String
+    self.to_string()
+  end
+end
+
+impl Debug for Float
+  fn debug_fmt(self) -> String
+    self.to_string()
+  end
+end
+
+impl Debug for Bool
+  fn debug_fmt(self) -> String
+    if self { "true" } else { "false" }
+  end
+end
+
+impl Debug for String
+  fn debug_fmt(self) -> String
+    "\"" + self + "\""
+  end
+end
+
+impl Debug for [T]
+  fn debug_fmt(self) -> String
+    let items = self.map(|x| x.debug_fmt())
+    "[" + String::join(items, ", ") + "]"
+  end
+end

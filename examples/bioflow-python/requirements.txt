@@ -1,0 +1,16 @@
+# BioFlow Python - Dependencies
+
+# Core dependencies (none required for pure Python implementation)
+
+# Optional: NumPy for optimized benchmarks
+# numpy>=1.20.0
+
+# Development/testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Type checking (optional)
+# mypy>=1.0.0
+
+# Documentation (optional)
+# sphinx>=5.0.0

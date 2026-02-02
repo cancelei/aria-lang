@@ -1,0 +1,201 @@
+{
+  "version": "1.0",
+  "scope": "aria-lang",
+  "triggers": [
+    {
+      "id": "type-system-paper",
+      "description": "Trigger when novel type system research discovered",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-types"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-TS",
+        "priority": "high",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "type-system", "academic"],
+        "artifact_path": "research/type_systems/"
+      }
+    },
+    {
+      "id": "memory-model-innovation",
+      "description": "Trigger when memory management approach identified",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-memory"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-MM",
+        "priority": "high",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "memory", "safety"],
+        "artifact_path": "research/memory_models/"
+      }
+    },
+    {
+      "id": "compiler-technique",
+      "description": "Trigger when compiler optimization technique found",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-compiler"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-COMP",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "compiler", "optimization"],
+        "artifact_path": "research/compiler_architecture/"
+      }
+    },
+    {
+      "id": "llm-verification-method",
+      "description": "Trigger when LLM verification approach discovered",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-llm"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-LLM",
+        "priority": "high",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "llm", "verification", "innovation"],
+        "artifact_path": "research/llm_integration/"
+      }
+    },
+    {
+      "id": "contract-system-pattern",
+      "description": "Trigger when contract/testing pattern identified",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-contracts"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-CT",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "contracts", "testing"],
+        "artifact_path": "research/contracts/"
+      }
+    },
+    {
+      "id": "ffi-approach",
+      "description": "Trigger when FFI/interop technique discovered",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-ffi"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-FFI",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "ffi", "interop"],
+        "artifact_path": "research/ffi/"
+      }
+    },
+    {
+      "id": "concurrency-model",
+      "description": "Trigger when concurrency approach identified",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-concurrency"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-CONC",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "concurrency", "async"],
+        "artifact_path": "research/concurrency/"
+      }
+    },
+    {
+      "id": "competitive-language",
+      "description": "Trigger when competitor language feature worth studying",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-competitor"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-LANG",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "competitive", "languages"],
+        "artifact_path": "research/"
+      }
+    },
+    {
+      "id": "performance-technique",
+      "description": "Trigger when performance optimization discovered",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/research-perf"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-PERF",
+        "priority": "high",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["research", "performance", "optimization"],
+        "artifact_path": "research/performance/"
+      }
+    },
+    {
+      "id": "prototype-experiment",
+      "description": "Trigger when ready to prototype a feature",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/prototype"}
+      ],
+      "action": {
+        "task_id_prefix": "ARIA-PROTO",
+        "priority": "normal",
+        "dependency": "AGENT_CAPABLE",
+        "tags": ["prototype", "experiment", "implementation"],
+        "artifact_path": "prototypes/"
+      }
+    },
+    {
+      "id": "breakthrough-discovery",
+      "description": "Trigger when significant breakthrough achieved",
+      "enabled": true,
+      "conditions": [
+        {"type": "manual", "command": "/breakthrough"}
+      ],
+      "action": {
+        "memory_type": "decision",
+        "memory_tags": ["breakthrough", "innovation"],
+        "artifact_path": "breakthroughs/"
+      }
+    }
+  ],
+  "hooks": [
+    {
+      "id": "research-session-start",
+      "event": "session.start",
+      "description": "Initialize Aria research context on session start",
+      "tool_chain": ["mem_recall", "wedo_list_tasks"],
+      "scope_filter": "aria-lang",
+      "silent": true
+    },
+    {
+      "id": "research-finding-store",
+      "event": "task.completed",
+      "description": "Store completed research findings as memory",
+      "tag_filter": ["research"],
+      "tool_chain": ["mem_remember"],
+      "silent": true
+    },
+    {
+      "id": "milestone-progress-check",
+      "event": "task.completed",
+      "description": "Check milestone progress after task completion",
+      "tag_filter": ["milestone"],
+      "tool_chain": ["wedo_progress"],
+      "silent": true
+    }
+  ],
+  "automation": {
+    "stale_task_timeout_hours": 72,
+    "escalate_stale_priority": true,
+    "notify_on_stale": true,
+    "auto_memory_capture": true
+  }
+}

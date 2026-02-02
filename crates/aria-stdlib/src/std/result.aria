@@ -1,0 +1,141 @@
+# Aria Standard Library - Result Type
+# Error handling with Result
+
+# Result type for operations that may fail
+enum Result<T, E>
+  Ok(T)
+  Err(E)
+end
+
+impl Result<T, E>
+  # Returns true if the result is Ok
+  fn is_ok(self) -> Bool
+    match self
+      Ok(_) -> true
+      Err(_) -> false
+    end
+  end
+
+  # Returns true if the result is Err
+  fn is_err(self) -> Bool
+    match self
+      Ok(_) -> false
+      Err(_) -> true
+    end
+  end
+
+  # Unwraps the result, panicking if Err
+  fn unwrap(self) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> panic("called `Result::unwrap()` on an `Err` value: #{err}")
+    end
+  end
+
+  # Unwraps the error, panicking if Ok
+  fn unwrap_err(self) -> E
+    match self
+      Ok(value) -> panic("called `Result::unwrap_err()` on an `Ok` value: #{value}")
+      Err(err) -> err
+    end
+  end
+
+  # Unwraps the result or returns a default value
+  fn unwrap_or(self, default: T) -> T
+    match self
+      Ok(value) -> value
+      Err(_) -> default
+    end
+  end
+
+  # Unwraps the result or computes a default from the error
+  fn unwrap_or_else(self, f: Fn(E) -> T) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> f(err)
+    end
+  end
+
+  # Maps a Result<T, E> to Result<U, E> by applying a function to Ok value
+  fn map(self, f: Fn(T) -> U) -> Result<U, E>
+    match self
+      Ok(value) -> Ok(f(value))
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Maps a Result<T, E> to Result<T, F> by applying a function to Err value
+  fn map_err(self, f: Fn(E) -> F) -> Result<T, F>
+    match self
+      Ok(value) -> Ok(value)
+      Err(err) -> Err(f(err))
+    end
+  end
+
+  # Calls f if the result is Ok, otherwise returns the Err value
+  fn and_then(self, f: Fn(T) -> Result<U, E>) -> Result<U, E>
+    match self
+      Ok(value) -> f(value)
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Calls f if the result is Err, otherwise returns the Ok value
+  fn or_else(self, f: Fn(E) -> Result<T, F>) -> Result<T, F>
+    match self
+      Ok(value) -> Ok(value)
+      Err(err) -> f(err)
+    end
+  end
+
+  # Converts from Result<T, E> to Option<T>
+  fn ok(self) -> Option<T>
+    match self
+      Ok(value) -> Some(value)
+      Err(_) -> None
+    end
+  end
+
+  # Converts from Result<T, E> to Option<E>
+  fn err(self) -> Option<E>
+    match self
+      Ok(_) -> None
+      Err(err) -> Some(err)
+    end
+  end
+
+  # Converts from Result<Result<T, E>, E> to Result<T, E>
+  fn flatten(self) -> Result<T, E>
+    match self
+      Ok(Ok(value)) -> Ok(value)
+      Ok(Err(err)) -> Err(err)
+      Err(err) -> Err(err)
+    end
+  end
+
+  # Returns the Ok value or panics with a custom message
+  fn expect(self, message: String) -> T
+    match self
+      Ok(value) -> value
+      Err(err) -> panic("#{message}: #{err}")
+    end
+  end
+
+  # Returns the Err value or panics with a custom message
+  fn expect_err(self, message: String) -> E
+    match self
+      Ok(value) -> panic("#{message}: #{value}")
+      Err(err) -> err
+    end
+  end
+end
+
+# Helper function to create Ok
+fn Ok(value: T) -> Result<T, E>
+  Result::Ok(value)
+end
+
+# Helper function to create Err
+fn Err(error: E) -> Result<T, E>
+  Result::Err(error)
+end

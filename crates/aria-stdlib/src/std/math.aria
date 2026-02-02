@@ -1,0 +1,281 @@
+# Aria Standard Library - Math Module
+# Mathematical functions and constants
+
+# Mathematical constants
+const PI: Float = 3.141592653589793
+const EULER: Float = 2.718281828459045
+const TAU: Float = 6.283185307179586
+const SQRT_2: Float = 1.4142135623730951
+const SQRT_3: Float = 1.7320508075688772
+const LN_2: Float = 0.6931471805599453
+const LN_10: Float = 2.302585092994046
+
+# Absolute value
+fn abs(x: Float) -> Float
+  # Native builtin
+  abs(x)
+end
+
+fn abs_int(x: Int) -> Int
+  if x < 0
+    -x
+  else
+    x
+  end
+end
+
+# Minimum of two values
+fn min(a: Float, b: Float) -> Float
+  # Native builtin
+  min(a, b)
+end
+
+fn min_int(a: Int, b: Int) -> Int
+  if a < b
+    a
+  else
+    b
+  end
+end
+
+# Maximum of two values
+fn max(a: Float, b: Float) -> Float
+  # Native builtin
+  max(a, b)
+end
+
+fn max_int(a: Int, b: Int) -> Int
+  if a > b
+    a
+  else
+    b
+  end
+end
+
+# Clamp value between min and max
+fn clamp(x: Float, min_val: Float, max_val: Float) -> Float
+  if x < min_val
+    min_val
+  elsif x > max_val
+    max_val
+  else
+    x
+  end
+end
+
+fn clamp_int(x: Int, min_val: Int, max_val: Int) -> Int
+  if x < min_val
+    min_val
+  elsif x > max_val
+    max_val
+  else
+    x
+  end
+end
+
+# Square root
+fn sqrt(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Power function
+fn pow(base: Float, exponent: Float) -> Float
+  # TODO: Native implementation
+  base
+end
+
+# Natural logarithm
+fn ln(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Base-10 logarithm
+fn log10(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Base-2 logarithm
+fn log2(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Exponential function (e^x)
+fn exp(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Trigonometric functions
+
+# Sine
+fn sin(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Cosine
+fn cos(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Tangent
+fn tan(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Arcsine
+fn asin(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Arccosine
+fn acos(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Arctangent
+fn atan(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Two-argument arctangent
+fn atan2(y: Float, x: Float) -> Float
+  # TODO: Native implementation
+  y
+end
+
+# Hyperbolic functions
+
+# Hyperbolic sine
+fn sinh(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Hyperbolic cosine
+fn cosh(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Hyperbolic tangent
+fn tanh(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Rounding functions
+
+# Round to nearest integer
+fn round(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Round down (floor)
+fn floor(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Round up (ceiling)
+fn ceil(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Truncate (round toward zero)
+fn trunc(x: Float) -> Float
+  # TODO: Native implementation
+  x
+end
+
+# Sign function (-1, 0, or 1)
+fn sign(x: Float) -> Float
+  if x > 0.0
+    1.0
+  elsif x < 0.0
+    -1.0
+  else
+    0.0
+  end
+end
+
+fn sign_int(x: Int) -> Int
+  if x > 0
+    1
+  elsif x < 0
+    -1
+  else
+    0
+  end
+end
+
+# Convert degrees to radians
+fn to_radians(degrees: Float) -> Float
+  degrees * PI / 180.0
+end
+
+# Convert radians to degrees
+fn to_degrees(radians: Float) -> Float
+  radians * 180.0 / PI
+end
+
+# Check if a number is NaN
+fn is_nan(x: Float) -> Bool
+  # TODO: Native implementation
+  false
+end
+
+# Check if a number is infinite
+fn is_infinite(x: Float) -> Bool
+  # TODO: Native implementation
+  false
+end
+
+# Check if a number is finite
+fn is_finite(x: Float) -> Bool
+  # TODO: Native implementation
+  true
+end
+
+# Greatest common divisor
+fn gcd(a: Int, b: Int) -> Int
+  let mut x = abs_int(a)
+  let mut y = abs_int(b)
+
+  while y != 0
+    let temp = y
+    y = x % y
+    x = temp
+  end
+
+  x
+end
+
+# Least common multiple
+fn lcm(a: Int, b: Int) -> Int
+  if a == 0 || b == 0
+    0
+  else
+    abs_int(a * b) / gcd(a, b)
+  end
+end
+
+# Factorial
+fn factorial(n: Int) -> Int
+  if n <= 1
+    1
+  else
+    n * factorial(n - 1)
+  end
+end

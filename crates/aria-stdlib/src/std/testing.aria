@@ -1,0 +1,325 @@
+# Aria Standard Library - Testing Module
+# Unit testing and assertions
+
+# Test result
+enum TestOutcome
+  Passed
+  Failed(String)  # Failure message
+  Skipped(String) # Skip reason
+end
+
+# A single test case
+struct TestCase
+  name: String
+  test_fn: Fn() -> TestOutcome
+end
+
+impl TestCase
+  fn new(name: String, test_fn: Fn() -> TestOutcome) -> TestCase
+    TestCase { name: name, test_fn: test_fn }
+  end
+
+  fn run(self) -> TestResult
+    let start = Instant::now()
+    let outcome = (self.test_fn)()
+    let duration = start.elapsed()
+    TestResult {
+      name: self.name,
+      outcome: outcome,
+      duration: duration
+    }
+  end
+end
+
+# Result of running a test
+struct TestResult
+  name: String
+  outcome: TestOutcome
+  duration: Duration
+end
+
+impl TestResult
+  fn is_passed(self) -> Bool
+    match self.outcome
+      TestOutcome::Passed -> true
+      _ -> false
+    end
+  end
+
+  fn is_failed(self) -> Bool
+    match self.outcome
+      TestOutcome::Failed(_) -> true
+      _ -> false
+    end
+  end
+
+  fn is_skipped(self) -> Bool
+    match self.outcome
+      TestOutcome::Skipped(_) -> true
+      _ -> false
+    end
+  end
+end
+
+# Test suite containing multiple tests
+struct TestSuite
+  name: String
+  tests: [TestCase]
+end
+
+impl TestSuite
+  fn new(name: String) -> TestSuite
+    TestSuite { name: name, tests: [] }
+  end
+
+  fn add(mut self, test: TestCase) -> TestSuite
+    self.tests.push(test)
+    self
+  end
+
+  fn test(mut self, name: String, test_fn: Fn() -> TestOutcome) -> TestSuite
+    self.tests.push(TestCase::new(name, test_fn))
+    self
+  end
+
+  fn run(self) -> SuiteResult
+    let mut results = []
+    for test in self.tests
+      results.push(test.run())
+    end
+    SuiteResult {
+      name: self.name,
+      results: results
+    }
+  end
+end
+
+# Result of running a test suite
+struct SuiteResult
+  name: String
+  results: [TestResult]
+end
+
+impl SuiteResult
+  fn passed_count(self) -> Int
+    self.results.filter(|r| r.is_passed()).len()
+  end
+
+  fn failed_count(self) -> Int
+    self.results.filter(|r| r.is_failed()).len()
+  end
+
+  fn skipped_count(self) -> Int
+    self.results.filter(|r| r.is_skipped()).len()
+  end
+
+  fn total_count(self) -> Int
+    self.results.len()
+  end
+
+  fn is_success(self) -> Bool
+    self.failed_count() == 0
+  end
+
+  fn print_summary(self)
+    println("Test Suite: #{self.name}")
+    println("=" .repeat(40))
+
+    for result in self.results
+      let status = match result.outcome
+        TestOutcome::Passed -> "[PASS]"
+        TestOutcome::Failed(_) -> "[FAIL]"
+        TestOutcome::Skipped(_) -> "[SKIP]"
+      end
+      println("  #{status} #{result.name}")
+
+      match result.outcome
+        TestOutcome::Failed(msg) -> println("         #{msg}")
+        TestOutcome::Skipped(reason) -> println("         Reason: #{reason}")
+        _ -> ()
+      end
+    end
+
+    println("")
+    println("Results: #{self.passed_count()} passed, #{self.failed_count()} failed, #{self.skipped_count()} skipped")
+  end
+end
+
+# Assertion functions
+
+# Asserts that a condition is true
+fn assert(condition: Bool)
+  if !condition
+    panic("Assertion failed")
+  end
+end
+
+# Asserts that a condition is true with a message
+fn assert_msg(condition: Bool, message: String)
+  if !condition
+    panic("Assertion failed: #{message}")
+  end
+end
+
+# Asserts that two values are equal
+fn assert_eq(actual, expected)
+  if actual != expected
+    panic("Assertion failed: expected #{expected}, got #{actual}")
+  end
+end
+
+# Asserts that two values are not equal
+fn assert_ne(actual, unexpected)
+  if actual == unexpected
+    panic("Assertion failed: expected value to differ from #{unexpected}")
+  end
+end
+
+# Asserts that actual is less than expected
+fn assert_lt(actual, expected)
+  if actual >= expected
+    panic("Assertion failed: expected #{actual} < #{expected}")
+  end
+end
+
+# Asserts that actual is less than or equal to expected
+fn assert_le(actual, expected)
+  if actual > expected
+    panic("Assertion failed: expected #{actual} <= #{expected}")
+  end
+end
+
+# Asserts that actual is greater than expected
+fn assert_gt(actual, expected)
+  if actual <= expected
+    panic("Assertion failed: expected #{actual} > #{expected}")
+  end
+end
+
+# Asserts that actual is greater than or equal to expected
+fn assert_ge(actual, expected)
+  if actual < expected
+    panic("Assertion failed: expected #{actual} >= #{expected}")
+  end
+end
+
+# Asserts that a value is true
+fn assert_true(value: Bool)
+  assert_eq(value, true)
+end
+
+# Asserts that a value is false
+fn assert_false(value: Bool)
+  assert_eq(value, false)
+end
+
+# Asserts that an Option is Some
+fn assert_some(opt: Option<T>) -> T
+  match opt
+    Some(v) -> v
+    None -> panic("Assertion failed: expected Some, got None")
+  end
+end
+
+# Asserts that an Option is None
+fn assert_none(opt: Option<T>)
+  match opt
+    Some(v) -> panic("Assertion failed: expected None, got Some(#{v})")
+    None -> ()
+  end
+end
+
+# Asserts that a Result is Ok
+fn assert_ok(result: Result<T, E>) -> T
+  match result
+    Ok(v) -> v
+    Err(e) -> panic("Assertion failed: expected Ok, got Err(#{e})")
+  end
+end
+
+# Asserts that a Result is Err
+fn assert_err(result: Result<T, E>) -> E
+  match result
+    Ok(v) -> panic("Assertion failed: expected Err, got Ok(#{v})")
+    Err(e) -> e
+  end
+end
+
+# Asserts that two floats are approximately equal
+fn assert_approx_eq(actual: Float, expected: Float, epsilon: Float)
+  let diff = if actual > expected { actual - expected } else { expected - actual }
+  if diff > epsilon
+    panic("Assertion failed: #{actual} not approximately equal to #{expected} (diff: #{diff}, epsilon: #{epsilon})")
+  end
+end
+
+# Asserts that an array contains a value
+fn assert_contains(array: [T], value: T)
+  if !array.contains(value)
+    panic("Assertion failed: array does not contain #{value}")
+  end
+end
+
+# Asserts that a string contains a substring
+fn assert_str_contains(haystack: String, needle: String)
+  if !haystack.contains(needle)
+    panic("Assertion failed: \"#{haystack}\" does not contain \"#{needle}\"")
+  end
+end
+
+# Asserts that code panics
+fn assert_panics(f: Fn())
+  # TODO: Requires panic catching mechanism
+  # For now, this is a stub
+  f()  # Just run it - will panic if it panics
+end
+
+# Skip a test with a reason
+fn skip(reason: String) -> TestOutcome
+  TestOutcome::Skipped(reason)
+end
+
+# Mark a test as passed
+fn pass() -> TestOutcome
+  TestOutcome::Passed
+end
+
+# Mark a test as failed
+fn fail(message: String) -> TestOutcome
+  TestOutcome::Failed(message)
+end
+
+# Helper to create a test that always passes
+fn test_pass(name: String) -> TestCase
+  TestCase::new(name, || pass())
+end
+
+# Helper to create a test that checks a condition
+fn test_that(name: String, condition: Fn() -> Bool) -> TestCase
+  TestCase::new(name, ||
+    if condition()
+      pass()
+    else
+      fail("Condition was false")
+    end
+  )
+end
+
+# Test fixture for setup/teardown
+struct TestFixture<T>
+  setup: Fn() -> T
+  teardown: Fn(T)
+end
+
+impl TestFixture<T>
+  fn new(setup: Fn() -> T, teardown: Fn(T)) -> TestFixture<T>
+    TestFixture { setup: setup, teardown: teardown }
+  end
+
+  fn run_test(self, test: Fn(T) -> TestOutcome) -> TestOutcome
+    let ctx = (self.setup)()
+    let result = test(ctx)
+    (self.teardown)(ctx)
+    result
+  end
+end
