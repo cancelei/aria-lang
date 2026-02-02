@@ -1,0 +1,33 @@
+/*
+ * aria-lang Multi-Agent Cooperation
+ * Demonstrates agents passing tasks and validating with humans.
+ */
+
+agent Researcher {
+    task gather_info(topic: string) -> string {
+        think { "Searching for information on ${topic}." }
+        // Simulated tool call
+        return "Key facts about ${topic}..."
+    }
+}
+
+agent Writer {
+    capability Researcher.gather_info
+
+    task write_article(topic: string) {
+        think { "Starting article draft." }
+        
+        // Calling another agent's task
+        let info = Researcher.gather_info(topic)
+        
+        think { "Drafting content based on researched facts." }
+        let draft = "Article: " + info
+
+        // Proposing to human for feedback
+        propose draft to Human as "Draft Review" {
+            // If human edits, 'draft' is updated
+            think { "Human reviewed draft. Finalizing." }
+            return draft
+        }
+    }
+}

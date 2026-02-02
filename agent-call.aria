@@ -1,0 +1,13 @@
+let $task = "Refactor the core engine"
+
+agent developer_bot {
+    think { "Looking at the AST nodes..." }
+    print "Current task:"
+    print $task
+}
+
+gate "Run the developer bot?" {
+    @developer_bot {
+        print "Bot is active."
+    }
+}

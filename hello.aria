@@ -1,0 +1,8 @@
+let $message = "Hello, community! 🦞"
+print $message
+
+think { "Aria is warming up..." }
+
+gate "Should we greet the world?" {
+    print "Greeting the world from Aria-Lang v0.1.0"
+}

@@ -1,0 +1,44 @@
+/*
+ * aria-lang Agentic Primitives Showcase
+ * This file demonstrates native support for agent-specific logic.
+ */
+
+// 1. Tool Definition (Native/External Integration)
+tool shell(command: string) {
+    permission: "system.execute",
+    timeout: 30s
+}
+
+// 2. Agent Definition with Scoped Capabilities
+agent DevOpsAssistant {
+    allow shell
+    
+    // 3. Task with Integrated Reasoning ('think')
+    task cleanup_logs() {
+        think {
+            "Storage is reaching 90% capacity."
+            "I will identify and remove logs older than 7 days."
+        }
+
+        let old_logs = shell("find /var/log -name '*.log' -mtime +7")
+        
+        // 4. Human-in-the-Loop (HITL) Validation Gate
+        // The language runtime blocks execution until the human provides a 'yes'.
+        gate "Delete the following log files? \n ${old_logs}" {
+            think { "Human approved deletion. Proceeding with cleanup." }
+            shell("rm ${old_logs}")
+            return "Cleanup completed."
+        } else {
+            think { "Deletion rejected by human. Aborting." }
+            return "Cleanup aborted."
+        }
+    }
+}
+
+// 5. Cooperative Interaction
+main {
+    let bot = spawn DevOpsAssistant
+    
+    // Explicitly handing control to an agent
+    delegate bot.cleanup_logs()
+}
