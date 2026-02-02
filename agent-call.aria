@@ -1,0 +1,11 @@
+# Basic agent interaction in aria-lang
+
+@coder {
+    implement "a fast fibonacci function" in "python"
+    let $code = last_output
+    
+    @tester {
+        run $code
+        assert "fib(10) == 55"
+    }
+}
