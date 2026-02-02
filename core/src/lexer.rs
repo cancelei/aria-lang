@@ -1,6 +1,6 @@
 use logos::Logos;
 
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace
 pub enum Token {
     // Keywords
@@ -31,6 +31,9 @@ pub enum Token {
         s[1..s.len()-1].to_string()
     })]
     String(String),
+
+    #[regex(r"[0-9]+(\.[0-9]+)?", |lex| lex.slice().parse::<f64>().ok())]
+    Number(f64),
 
     // Symbols
     #[token("{")]

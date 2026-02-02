@@ -1,11 +1,13 @@
-# Basic agent interaction in aria-lang
+let $task = "Refactor the core engine"
 
-@coder {
-    implement "a fast fibonacci function" in "python"
-    let $code = last_output
-    
-    @tester {
-        run $code
-        assert "fib(10) == 55"
+agent developer_bot {
+    think { "Looking at the AST nodes..." }
+    print "Current task:"
+    print $task
+}
+
+gate "Run the developer bot?" {
+    @developer_bot {
+        print "Bot is active."
     }
 }

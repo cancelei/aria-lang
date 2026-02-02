@@ -2,10 +2,22 @@
 
 Optimized programming language for a shared human-AI future. Built from scratch in 1 week.
 
-## Technical Goals
-- **Parser/Lexer**: High-performance, error-resilient grammar.
-- **Runtime**: Efficient execution engine.
-- **Agent-Ready**: Native primitives for AI-agent interaction and autonomy.
+## Getting Started
+### 🛠️ Build from Source
+Requirements: [Rust/Cargo](https://rustup.rs/)
 
-## Contest Phase: Week 1
-Target: Functional interpreter for core syntax.
+```bash
+cd core
+cargo run
+```
+
+### 💻 Run a Script
+```bash
+cargo run -- path/to/script.aria
+```
+
+## Day 0 Implementation
+We have a working Tree-Walking Interpreter with:
+- **Lexer**: Sigil-based tokenization.
+- **Parser**: Recursive descent AST generation.
+- **Runtime**: Support for `let`, `print`, `think`, `gate` (HITL), and `agent` blocks.
