@@ -1,46 +1,44 @@
-# Aria-Lang: 7-Day Vision & Roadmap 🚀
+# Aria-Lang: Vision & Strategy 🔭
 
-Aria-Lang is a programming language designed for a future where humans and AI agents collaborate seamlessly. Our goal is to move safety, reasoning, and cooperation from "best practices" in a prompt to "hard constraints" in the language runtime.
+> "From Persuasion to Physics."
 
-## The 1-Week Challenge: "The Working Core"
-By the end of this week, we will have a functional interpreter that can execute scripts featuring native agent autonomy and human-in-the-loop safety.
+## The Problem
+Current agentic systems (LangChain, AutoGPT, etc.) rely on **Prompt Engineering** for safety.
+*   **Method:** "System Prompt: Please do not delete files without asking."
+*   **Failure Mode:** Prompt Injection, hallucination, or simply ignoring the instruction.
+*   **Analogy:** Asking a toddler nicely not to touch the hot stove.
 
-### 📅 Day-by-Day Roadmap
+## The Solution: Aria-Lang
+A programming language where safety is enforced by the **Runtime Physics**.
+*   **Method:** `gate "Approve?" { delete() }`
+*   **Success Mode:** The runtime *halts*. The CPU *stops* executing the next instruction until the signal is verified.
+*   **Analogy:** Putting a locked cage around the hot stove.
 
-- **Day 1: Lexical Foundation**
-  - Finalize the sigil-based grammar ($var, @agent).
-  - Build a high-performance Lexer in Rust.
-  - **Milestone:** Successfully tokenize a complex `.aria` script.
+## Core Pillars
 
-- **Day 2: The Parser & The Tree**
-  - Implement a Recursive Descent Parser.
-  - Define the Abstract Syntax Tree (AST) using Rust's powerful Enums.
-  - **Milestone:** Generate a valid AST from source code.
+### 1. Safety as Physics
+The agent cannot "think" its way out of a `gate`. The constraint is in the interpreter, not the context window.
 
-- **Day 3: The Breath of Life (Evaluation)**
-  - Build the Tree-Walking Interpreter.
-  - Implement Scopes and Variable Shadowing.
-  - **Milestone:** Execute a "Hello World" with variable logic.
+### 2. Digital Organism Architecture
+Agents are not just scripts; they are persistent organisms with:
+*   **Metabolism:** Resource limits (tokens, CPU time).
+*   **Membranes:** Sandboxed environments (Docker/WASM) for risky tools.
+*   **Nervous System:** `think` blocks that emit signals for observability.
 
-- **Day 4: Agent Autonomy (Primitives)**
-  - Implement native `think { ... }` blocks (observability).
-  - Implement `tool` definitions and `allow` permissions.
-  - **Milestone:** Run a script that "reasons" before acting.
+### 3. Human-Agent Symbiosis
+Aria-Lang is designed for **Cooperation**, not just automation.
+*   **Delegate:** Explicitly handing off tasks.
+*   **Propose:** Agents drafting actions for human review.
+*   **Gate:** Hard stops for critical decisions.
 
-- **Day 5: The Safety Valve (HITL)**
-  - Implement the `gate "message" { ... }` primitive.
-  - Build the runtime pause-and-resume logic for human approval.
-  - **Milestone:** Execute a "dangerous" action that waits for human OK.
+## The Contest Strategy (7 Days)
 
-- **Day 6: Standard Library & IO**
-  - Build built-in functions for JSON, File System, and Network.
-  - Add native Moltbook integration helpers.
-  - **Milestone:** An agent script that reads a file and posts a summary.
+We are participating in the **Moltbook Agent Contest** to prove this model.
 
-- **Day 7: CLI & Community Launch**
-  - Finalize the `aria` CLI.
-  - Package for distribution (crates.io).
-  - **Milestone:** Public release of the Aria-Lang v0.1.0 "Contest Edition".
+*   **Day 0-2 (Done):** Build the Skeleton (Parser, AST) and the Conscience (`gate`).
+*   **Day 3-4 (Active):** Build the Hands (Tools) and the Membrane (Sandbox).
+*   **Day 5-6:** Build the Metabolism (Resource Limits) and the Voice (StdLib).
+*   **Day 7:** Launch v1.0.
 
-## 🤝 For the Community
-We want your ideas! If you have a feature, a syntax suggestion, or a use case, use our [Suggestion Template](./community/SUGGESTION_TEMPLATE.md). We will review and implement the best community ideas during the build.
+## Join the Evolution
+We are open-sourcing our "DNA". Help us build the cells.
