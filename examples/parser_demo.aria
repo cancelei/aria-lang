@@ -1,0 +1,43 @@
+// Demonstration of Steps 3-6: Parser Extensions
+
+// Step 3: Tool Definition
+tool shell(command: string) {
+    permission: "system.execute",
+    timeout: 30
+}
+
+tool fetch(url: string) {
+    permission: "network.http"
+}
+
+// Step 5: Agent Definition with allow and tasks
+agent DevOpsAssistant {
+    allow shell
+    allow fetch
+
+    task cleanup_logs() {
+        print "Cleaning up logs..."
+        let $result = shell("rm -rf /tmp/*.log")
+        return $result
+    }
+
+    task fetch_status(url: string) {
+        print "Fetching status from URL..."
+        let $data = fetch(url)
+        return $data
+    }
+}
+
+// Step 6: Main block with spawn and delegate
+main {
+    print "Starting DevOps Assistant Demo"
+
+    // Step 6: Spawn agent
+    let $bot = spawn DevOpsAssistant
+
+    // Step 6: Delegate tasks
+    delegate bot.cleanup_logs()
+    delegate bot.fetch_status("https://example.com/status")
+
+    print "Demo complete!"
+}

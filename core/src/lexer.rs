@@ -2,6 +2,7 @@ use logos::Logos;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace
+#[logos(skip r"//[^\n]*")]  // Skip line comments
 pub enum Token {
     // Keywords
     #[token("let")]
@@ -72,6 +73,8 @@ pub enum Token {
     Comma,
     #[token("->")]
     Arrow,
+    #[token(".")]
+    Dot,
 }
 
 #[cfg(test)]

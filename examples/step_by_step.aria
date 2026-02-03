@@ -1,0 +1,75 @@
+// Step-by-step demonstration of each parser extension
+
+// ========================================
+// STEP 3: Tool Definition Parsing
+// ========================================
+
+tool shell(command: string) {
+    permission: "system.execute",
+    timeout: 30
+}
+
+tool fetch(url: string) {
+    permission: "network.http"
+}
+
+// ========================================
+// STEP 4: Function Call Parsing
+// ========================================
+
+// Simple call with one argument
+let $result1 = shell("ls -la")
+
+// Call with multiple arguments
+let $result2 = add(10, 20)
+
+// Nested calls
+print shell("echo hello")
+
+// ========================================
+// STEP 5: Agent Definition with Allow/Tasks
+// ========================================
+
+agent SimpleAgent {
+    allow shell
+}
+
+agent ComplexAgent {
+    allow shell
+    allow fetch
+
+    task simple_task() {
+        print "Task with no params"
+    }
+
+    task task_with_params(name: string, value: number) {
+        print name
+        print value
+        return value
+    }
+
+    task task_with_body() {
+        let $x = 42
+        let $y = shell("pwd")
+        print $x
+        print $y
+        return $y
+    }
+}
+
+// ========================================
+// STEP 6: Spawn, Delegate, and Main
+// ========================================
+
+main {
+    // Spawn an agent
+    let $bot1 = spawn SimpleAgent
+    let $bot2 = spawn ComplexAgent
+
+    // Delegate tasks
+    delegate bot2.simple_task()
+    delegate bot2.task_with_params("test", 123)
+    delegate bot2.task_with_body()
+
+    print "All steps complete!"
+}
