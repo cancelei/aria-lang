@@ -1,31 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/aria-lexer",
-    "crates/aria-ast",
-    "crates/aria-parser",
-    "crates/aria-types",
-    "crates/aria-interpreter",
-    "crates/aria-mir",
-    "crates/aria-codegen",
-    "crates/aria-compiler",
-    "crates/aria-contracts",
-    "crates/aria-ownership",
-    "crates/aria-runtime",
-    "crates/aria-channel",
-    "crates/aria-effects",
-    "crates/aria-ffi",
-    "crates/aria-diagnostics",
-    "crates/aria-lsp",
-    "crates/aria-test",
-    "crates/aria-python",
-    "crates/aria-pkg",
-    "crates/aria-modules",
-    "crates/aria-stdlib",
-    "crates/aria-patterns",
-    "crates/aria-proptest",
-    "crates/aria-llm",
-    "benches",
+    "core",
 ]
 
 [workspace.package]

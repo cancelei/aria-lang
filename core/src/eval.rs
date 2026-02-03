@@ -67,6 +67,34 @@ impl Evaluator {
                 }
                 println!("[Exiting Agent Context: {}]", name);
             }
+            Statement::ToolDef { .. } => {
+                // TODO: Implement tool definitions
+                return Err("Tool definitions not yet implemented".to_string());
+            }
+            Statement::AgentDef { .. } => {
+                // TODO: Implement agent definitions
+                return Err("Agent definitions not yet implemented".to_string());
+            }
+            Statement::TaskDef(_) => {
+                // TODO: Implement task definitions
+                return Err("Task definitions not yet implemented".to_string());
+            }
+            Statement::Spawn { .. } => {
+                // TODO: Implement spawn
+                return Err("Spawn not yet implemented".to_string());
+            }
+            Statement::Delegate { .. } => {
+                // TODO: Implement delegate
+                return Err("Delegate not yet implemented".to_string());
+            }
+            Statement::Main { .. } => {
+                // TODO: Implement main block
+                return Err("Main block not yet implemented".to_string());
+            }
+            Statement::Return(_) => {
+                // TODO: Implement return
+                return Err("Return not yet implemented".to_string());
+            }
         }
         Ok(())
     }
@@ -77,6 +105,14 @@ impl Evaluator {
             Expr::Number(n) => Ok(Value::Number(n)),
             Expr::Var(v) => self.variables.get(&v).cloned().ok_or(format!("Undefined variable: {}", v)),
             Expr::Agent(a) => Ok(Value::String(format!("Context:{}", a))),
+            Expr::Call { .. } => {
+                // TODO: Implement function calls
+                Err("Function calls not yet implemented".to_string())
+            }
+            Expr::MemberAccess { .. } => {
+                // TODO: Implement member access
+                Err("Member access not yet implemented".to_string())
+            }
         }
     }
 }
