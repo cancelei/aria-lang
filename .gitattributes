@@ -1,0 +1,45 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Rust
+*.rs text eol=lf
+Cargo.toml text eol=lf
+Cargo.lock text eol=lf
+
+# Markdown
+*.md text eol=lf
+
+# YAML
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# JSON
+*.json text eol=lf
+
+# Aria lang files
+*.aria text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.wasm binary
+*.rlib binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.exe binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.tgz binary
+*.rar binary
+*.7z binary
