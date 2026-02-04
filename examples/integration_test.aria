@@ -1,0 +1,55 @@
+// Integration test for Day 3 evaluator features
+
+// Step 1: Define tools
+tool read_file(path: string) {
+    permission: "io.read",
+    timeout: 30
+}
+
+tool write_file(path: string, content: string) {
+    permission: "io.write"
+}
+
+tool shell(cmd: string) {
+    permission: "system.execute"
+}
+
+// Step 2: Define agents with scoped permissions
+agent FileManager {
+    allow read_file
+    allow write_file
+    
+    task backup(source: string) {
+        print "Backing up file..."
+        let $content = read_file(source)
+        let $result = write_file("/backup.txt", $content)
+        return $result
+    }
+}
+
+agent DevOps {
+    allow shell
+    
+    task cleanup() {
+        print "Running cleanup..."
+        let $result = shell("rm -f /tmp/*.log")
+        return $result
+    }
+}
+
+// Step 3: Main execution with spawning and delegation
+main {
+    print "=== Integration Test Start ==="
+    
+    // Spawn multiple agents
+    let $fm = spawn FileManager
+    let $devops = spawn DevOps
+    
+    print "Agents spawned successfully"
+    
+    // Delegate tasks
+    delegate fm.backup("test.txt")
+    delegate devops.cleanup()
+    
+    print "=== Integration Test Complete ==="
+}
