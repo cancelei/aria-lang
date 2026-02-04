@@ -1,0 +1,46 @@
+// Day 4: Permission enforcement demonstration
+
+tool read_file(path: string) {
+    permission: "io.read",
+    timeout: 30
+}
+
+tool write_file(path: string, content: string) {
+    permission: "io.write"
+}
+
+tool shell(cmd: string) {
+    permission: "system.execute"
+}
+
+// Agent with LIMITED permissions
+agent RestrictedBot {
+    allow read_file
+    // NOTE: Does NOT allow write_file or shell
+
+    task try_read(file: string) {
+        print "Attempting to read file..."
+        let $content = read_file(file)
+        return $content
+    }
+
+    task try_write(file: string) {
+        print "Attempting to write file..."
+        let $result = write_file(file, "hacked")
+        return $result
+    }
+}
+
+main {
+    print "=== Permission Enforcement Test ==="
+
+    let $bot = spawn RestrictedBot
+
+    print "\n--- Test 1: Allowed operation ---"
+    delegate bot.try_read("/tmp/test.txt")
+
+    print "\n--- Test 2: Forbidden operation ---"
+    delegate bot.try_write("/etc/passwd")
+
+    print "\n=== Test Complete ==="
+}

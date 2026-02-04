@@ -33,6 +33,7 @@ pub struct Evaluator {
     pub tools: HashMap<String, Tool>,
     pub agent_defs: HashMap<String, AgentDef>,
     pub agents: HashMap<String, AgentInstance>,
+    pub current_agent: Option<String>,  // Day 4: Execution context tracking
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +51,7 @@ impl Evaluator {
             tools: HashMap::new(),
             agent_defs: HashMap::new(),
             agents: HashMap::new(),
+            current_agent: None,  // Day 4: Start in main context
         }
     }
 
@@ -120,9 +122,15 @@ impl Evaluator {
             }
             Statement::Main { body } => {
                 println!("[Entering Main Block]");
+                // Day 4: Ensure we're in main context (unrestricted)
+                let previous_agent = self.current_agent.clone();
+                self.current_agent = None;
+
                 for s in body {
                     self.eval_statement(s)?;
                 }
+
+                self.current_agent = previous_agent;
                 println!("[Exiting Main Block]");
             }
             Statement::Return(expr) => {
@@ -203,10 +211,25 @@ impl Evaluator {
                     self.variables.insert(param.clone(), value.clone());
                 }
 
-                // Execute task body
+                // Day 4: Save current execution context
+                let previous_agent = self.current_agent.clone();
+
+                // Day 4: Set agent context for task execution
+                self.current_agent = Some(agent_var.clone());
+                println!("[Context Switch] Entering agent context: {}", agent_var);
+
+                // Execute task body with proper error handling
                 for stmt in task.body {
-                    self.eval_statement(stmt)?;
+                    if let Err(e) = self.eval_statement(stmt) {
+                        self.current_agent = previous_agent;  // RESTORE on error
+                        self.variables = old_variables;
+                        return Err(e);
+                    }
                 }
+
+                // Day 4: Restore previous execution context
+                self.current_agent = previous_agent;
+                println!("[Context Switch] Exiting agent context: {}", agent_var);
 
                 // Restore original scope
                 // In a more sophisticated version, we'd handle return values
@@ -220,18 +243,33 @@ impl Evaluator {
         }
     }
 
-    // Day 3 - Step 11: Function Calls with Permission Checking (THE PHYSICS!)
+    // Day 4: Function Calls with Permission Enforcement
     fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
-        // Check if tool is defined and clone permission (to avoid borrow issues)
+        // Check if tool is defined
         let permission = {
             let tool = self.tools.get(name)
                 .ok_or(format!("Tool '{}' is not defined", name))?;
             tool.permission.clone()
         };
 
-        // TODO: For now, we'll skip permission checking since we don't track "current agent context"
-        // In a real implementation, we'd need to know which agent is making the call
-        // For now, just log and execute
+        // PERMISSION ENFORCEMENT
+        if let Some(agent_name) = &self.current_agent {
+            // Agent context - check permissions
+            let agent_instance = self.agents.get(agent_name)
+                .ok_or(format!("[Internal Error] Agent '{}' not found", agent_name))?;
+
+            if !agent_instance.allowed_tools.contains(&name.to_string()) {
+                return Err(format!(
+                    "[Permission Denied] Agent '{}' attempted to call tool '{}' but it is not in the allow list. Allowed tools: {:?}",
+                    agent_name, name, agent_instance.allowed_tools
+                ));
+            }
+
+            println!("[Permission Check] Agent '{}' is ALLOWED to call '{}'", agent_name, name);
+        } else {
+            // Main context - unrestricted
+            println!("[Permission Check] Main context - tool '{}' allowed (unrestricted)", name);
+        }
 
         // Evaluate arguments
         let mut evaluated_args = Vec::new();
@@ -239,11 +277,8 @@ impl Evaluator {
             evaluated_args.push(self.eval_expr(arg)?);
         }
 
-        // Log the call (in real implementation, this would actually execute)
-        println!("[Tool Call] {} with {} args (permission: {:?})",
-                 name, evaluated_args.len(), permission);
-
-        // Return a dummy result
+        // Execute (currently dummy result)
+        println!("[Tool Call] {} with {} args (permission: {:?})", name, evaluated_args.len(), permission);
         Ok(Value::String(format!("Result from {}", name)))
     }
 
