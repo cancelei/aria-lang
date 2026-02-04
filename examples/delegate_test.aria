@@ -1,0 +1,32 @@
+// Simple delegate test
+
+tool shell(command: string) {
+    permission: "system.execute"
+}
+
+agent DevOpsAssistant {
+    allow shell
+
+    task cleanup_logs() {
+        print "Cleaning up logs..."
+    }
+
+    task greet(name: string) {
+        print "Hello from agent!"
+        print name
+    }
+}
+
+main {
+    print "=== Delegate Test ==="
+
+    let $bot = spawn DevOpsAssistant
+
+    print "Test 1: Task with no arguments"
+    delegate bot.cleanup_logs()
+
+    print "Test 2: Task with argument"
+    delegate bot.greet("Aria")
+
+    print "=== Test Complete ==="
+}

@@ -115,9 +115,8 @@ impl Evaluator {
             Statement::Spawn { var_name, agent_name } => {
                 self.eval_spawn(var_name, agent_name)?;
             }
-            Statement::Delegate { .. } => {
-                // TODO: Implement delegate
-                return Err("Delegate not yet implemented".to_string());
+            Statement::Delegate { call } => {
+                self.eval_delegate(call)?;
             }
             Statement::Main { body } => {
                 println!("[Entering Main Block]");
@@ -126,12 +125,99 @@ impl Evaluator {
                 }
                 println!("[Exiting Main Block]");
             }
-            Statement::Return(_) => {
-                // TODO: Implement return
-                return Err("Return not yet implemented".to_string());
+            Statement::Return(expr) => {
+                // TODO: Implement proper return handling with value propagation
+                // For now, just evaluate the expression and log it
+                let val = self.eval_expr(expr)?;
+                println!("[Return] {:?}", val);
             }
         }
         Ok(())
+    }
+
+    // Day 3 - Step 12: Delegate Task Execution
+    fn eval_delegate(&mut self, call: Expr) -> Result<(), String> {
+        // Delegate expects a Call expression with name formatted as "agent_var.task_name"
+        // The parser creates: Expr::Call { name: "bot.cleanup_logs", args: [...] }
+
+        match call {
+            Expr::Call { name, args } => {
+                // Parse the name to extract agent variable and task name
+                // Format: "agent_var.task_name"
+                let parts: Vec<&str> = name.split('.').collect();
+                if parts.len() != 2 {
+                    return Err(format!("Invalid delegate call format: '{}'. Expected 'agent.task'", name));
+                }
+
+                let mut agent_var = parts[0].to_string();
+                let task_name = parts[1].to_string();
+
+                // Try to find the agent instance - handle both "bot" and "$bot" formats
+                // If the variable doesn't have a $ prefix and isn't found, try adding it
+                let agent_instance = if let Some(instance) = self.agents.get(&agent_var) {
+                    instance
+                } else if !agent_var.starts_with('$') {
+                    // Try with $ prefix
+                    let prefixed = format!("${}", agent_var);
+                    agent_var = prefixed.clone();
+                    self.agents.get(&prefixed)
+                        .ok_or(format!("Agent instance '{}' not found", parts[0]))?
+                } else {
+                    return Err(format!("Agent instance '{}' not found", agent_var));
+                };
+
+                // Get agent definition
+                let agent_def_name = agent_instance.agent_def_name.clone();
+                let agent_def = self.agent_defs.get(&agent_def_name)
+                    .ok_or(format!("Agent definition '{}' not found", agent_def_name))?;
+
+                // Find the task in the agent definition
+                let task = agent_def.tasks.iter()
+                    .find(|t| t.name == task_name)
+                    .ok_or(format!("Task '{}' not found in agent '{}'", task_name, agent_def_name))?
+                    .clone();
+
+                println!("[Delegating] {}.{}() with {} args", agent_var, task_name, args.len());
+
+                // Evaluate arguments
+                let mut evaluated_args = Vec::new();
+                for arg in args {
+                    evaluated_args.push(self.eval_expr(arg)?);
+                }
+
+                // Execute task body in the context of the agent
+                // Create a new scope for the task execution
+                let old_variables = self.variables.clone();
+
+                // Bind task parameters to evaluated arguments
+                if task.params.len() != evaluated_args.len() {
+                    return Err(format!(
+                        "Task '{}' expects {} parameters but got {}",
+                        task_name,
+                        task.params.len(),
+                        evaluated_args.len()
+                    ));
+                }
+
+                for (param, value) in task.params.iter().zip(evaluated_args.iter()) {
+                    self.variables.insert(param.clone(), value.clone());
+                }
+
+                // Execute task body
+                for stmt in task.body {
+                    self.eval_statement(stmt)?;
+                }
+
+                // Restore original scope
+                // In a more sophisticated version, we'd handle return values
+                self.variables = old_variables;
+
+                Ok(())
+            }
+            _ => {
+                Err("Delegate expects call expression (agent.task())".to_string())
+            }
+        }
     }
 
     // Day 3 - Step 11: Function Calls with Permission Checking (THE PHYSICS!)

@@ -1,0 +1,14 @@
+// Test delegate parameter mismatch error
+
+agent TestAgent {
+    task needs_param(msg: string) {
+        print msg
+    }
+}
+
+main {
+    let $myagent = spawn TestAgent
+
+    // This should fail with parameter count error
+    delegate myagent.needs_param()
+}

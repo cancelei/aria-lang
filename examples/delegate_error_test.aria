@@ -1,0 +1,23 @@
+// Test delegate error handling
+
+agent TestAgent {
+    task correct_task(msg: string) {
+        print msg
+    }
+
+    task no_param_task() {
+        print "No params"
+    }
+}
+
+main {
+    print "=== Testing Delegate Error Handling ==="
+
+    let $myagent = spawn TestAgent
+
+    print "Test 1: Correct usage"
+    delegate myagent.correct_task("Hello!")
+
+    print "Test 2: Task with no params"
+    delegate myagent.no_param_task()
+}
