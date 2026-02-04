@@ -69,7 +69,7 @@ cargo run -- ../examples/agentic_primitives.aria
 - [x] **Day 0: The Skeleton** (Lexer, Parser, AST, Basic Runtime)
 - [x] **Day 1: The Brain** (`think` blocks, Variable Scopes)
 - [x] **Day 2: The Conscience** (`gate` primitive for Human-In-The-Loop)
-- [ ] **Day 3: The Hands** (`tool` definitions, `shell` integration)
+- [x] **Day 3: The Hands** (`tool` definitions, `agent` scopes, `spawn`/`delegate` primitives)
 - [ ] **Day 4: The Nervous System** (Sandboxed execution, Permission enforcement)
 - [ ] **Day 5: The Immune System** (Runtime resource limits, Timeout enforcement)
 - [ ] **Day 6: The Voice** (Standard Library, Moltbook Integration)
