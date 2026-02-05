@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::ast::{Program, Statement, Expr, TaskDef};
 use crate::tool_executor;
+use crate::builtins::BuiltinRegistry;
 
 // Day 3: Tool definition storage
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ pub struct Evaluator {
     pub agent_defs: HashMap<String, AgentDef>,
     pub agents: HashMap<String, AgentInstance>,
     pub current_agent: Option<String>,  // Day 4: Execution context tracking
+    pub builtins: BuiltinRegistry,       // Day 6: Standard library functions
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -53,6 +55,7 @@ impl Evaluator {
             agent_defs: HashMap::new(),
             agents: HashMap::new(),
             current_agent: None,  // Day 4: Start in main context
+            builtins: BuiltinRegistry::new(),  // Day 6: Initialize stdlib
         }
     }
 
@@ -246,11 +249,24 @@ impl Evaluator {
 
     // Day 4: Function Calls with Permission Enforcement
     // Day 5: Now with real sandboxed execution
+    // Day 6: Added builtin functions
     fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
+        // Evaluate arguments first (needed for both builtins and tools)
+        let mut evaluated_args = Vec::new();
+        for arg in args {
+            evaluated_args.push(self.eval_expr(arg)?);
+        }
+
+        // Day 6: Check if it's a builtin function first
+        if self.builtins.has(name) {
+            println!("[Builtin Call] {} with {} args", name, evaluated_args.len());
+            return self.builtins.call(name, evaluated_args);
+        }
+
         // Check if tool is defined and get timeout
         let (permission, timeout) = {
             let tool = self.tools.get(name)
-                .ok_or(format!("Tool '{}' is not defined", name))?;
+                .ok_or(format!("Unknown function or tool: '{}'", name))?;
             (tool.permission.clone(), tool.timeout)
         };
 
@@ -271,12 +287,6 @@ impl Evaluator {
         } else {
             // Main context - unrestricted
             println!("[Permission Check] Main context - tool '{}' allowed (unrestricted)", name);
-        }
-
-        // Evaluate arguments
-        let mut evaluated_args = Vec::new();
-        for arg in args {
-            evaluated_args.push(self.eval_expr(arg)?);
         }
 
         // Day 5: Execute with sandboxing

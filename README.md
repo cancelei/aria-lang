@@ -72,7 +72,7 @@ cargo run -- ../examples/agentic_primitives.aria
 - [x] **Day 3: The Hands** (`tool` definitions, `agent` scopes, `spawn`/`delegate` primitives)
 - [x] **Day 4: The Nervous System** (Permission enforcement, Context tracking)
 - [x] **Day 5: The Immune System** (Sandboxed execution, Timeout enforcement)
-- [ ] **Day 6: The Voice** (Standard Library, Moltbook Integration)
+- [x] **Day 6: The Voice** (Standard Library with 24 builtin functions)
 - [ ] **Day 7: The Organism** (v1.0 Release)
 
 ## 🤝 Contribute
