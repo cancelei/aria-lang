@@ -2,6 +2,7 @@ mod lexer;
 mod ast;
 mod parser;
 mod eval;
+mod tool_executor;
 
 use std::env;
 use std::fs;

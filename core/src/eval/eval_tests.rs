@@ -63,23 +63,25 @@ mod permission_tests {
     fn test_permission_allowed() {
         let mut evaluator = Evaluator::new();
 
-        evaluator.eval_tool_def("write_file".to_string(), vec![], Some("io.write".to_string()), None).unwrap();
-        evaluator.eval_agent_def("WriterAgent".to_string(), vec!["write_file".to_string()], vec![], vec![]).unwrap();
+        // Use echo instead of write_file for simpler testing
+        evaluator.eval_tool_def("echo".to_string(), vec![], Some("io.write".to_string()), Some(5.0)).unwrap();
+        evaluator.eval_agent_def("WriterAgent".to_string(), vec!["echo".to_string()], vec![], vec![]).unwrap();
         evaluator.eval_spawn("$writer".to_string(), "WriterAgent".to_string()).unwrap();
         evaluator.current_agent = Some("$writer".to_string());
 
-        let result = evaluator.eval_call("write_file", vec![]);
+        let result = evaluator.eval_call("echo", vec![Expr::String("test".to_string())]);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_main_context_unrestricted() {
         let mut evaluator = Evaluator::new();
-        evaluator.eval_tool_def("dangerous_tool".to_string(), vec![], Some("system.execute".to_string()), None).unwrap();
+        // Use echo for testing
+        evaluator.eval_tool_def("echo".to_string(), vec![], Some("system.execute".to_string()), Some(5.0)).unwrap();
 
         // Main context (current_agent = None)
         assert_eq!(evaluator.current_agent, None);
-        let result = evaluator.eval_call("dangerous_tool", vec![]);
+        let result = evaluator.eval_call("echo", vec![Expr::String("test".to_string())]);
         assert!(result.is_ok());
     }
 

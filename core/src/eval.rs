@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::ast::{Program, Statement, Expr, TaskDef};
+use crate::tool_executor;
 
 // Day 3: Tool definition storage
 #[derive(Debug, Clone)]
@@ -244,12 +245,13 @@ impl Evaluator {
     }
 
     // Day 4: Function Calls with Permission Enforcement
+    // Day 5: Now with real sandboxed execution
     fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
-        // Check if tool is defined
-        let permission = {
+        // Check if tool is defined and get timeout
+        let (permission, timeout) = {
             let tool = self.tools.get(name)
                 .ok_or(format!("Tool '{}' is not defined", name))?;
-            tool.permission.clone()
+            (tool.permission.clone(), tool.timeout)
         };
 
         // PERMISSION ENFORCEMENT
@@ -277,9 +279,12 @@ impl Evaluator {
             evaluated_args.push(self.eval_expr(arg)?);
         }
 
-        // Execute (currently dummy result)
-        println!("[Tool Call] {} with {} args (permission: {:?})", name, evaluated_args.len(), permission);
-        Ok(Value::String(format!("Result from {}", name)))
+        // Day 5: Execute with sandboxing
+        println!("[Tool Call] {} with {} args (permission: {:?}, timeout: {:?}s)",
+            name, evaluated_args.len(), permission, timeout);
+
+        // Execute in sandbox
+        tool_executor::execute_tool_command(name, &evaluated_args, timeout)
     }
 
     // Day 3 - Step 10: Agent Spawning (Instantiation)

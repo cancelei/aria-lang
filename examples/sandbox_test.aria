@@ -1,0 +1,59 @@
+// Day 5: Sandboxing Integration Test
+// Demonstrates real tool execution with timeout enforcement
+
+tool echo(msg: string) {
+    permission: "system.execute",
+    timeout: 5
+}
+
+tool shell(cmd: string) {
+    permission: "system.execute",
+    timeout: 10
+}
+
+tool read_file(path: string) {
+    permission: "io.read",
+    timeout: 5
+}
+
+agent Worker {
+    allow echo
+    allow read_file
+
+    task say_hello(msg: string) {
+        think { "I'm going to echo a message" }
+        let $result = echo(msg)
+        return $result
+    }
+}
+
+main {
+    print "=== Day 5: Sandbox Integration Test ==="
+    print ""
+
+    // Test 1: Basic tool execution
+    print "--- Test 1: Basic Echo ---"
+    let $output = echo("Hello from sandboxed execution!")
+    print "Output:"
+    print $output
+
+    // Test 2: Shell command execution
+    print "\n--- Test 2: Shell Command ---"
+    let $date = shell("date +%Y-%m-%d")
+    print "Current date:"
+    print $date
+
+    // Test 3: Agent with permissions
+    print "\n--- Test 3: Agent Execution ---"
+    let $worker = spawn Worker
+    think { "Delegating task to worker agent" }
+    delegate $worker.say_hello("Greetings from the agent!")
+
+    // Test 4: List files (demonstrating real filesystem access)
+    print "\n--- Test 4: Filesystem Access ---"
+    let $files = shell("ls -la examples/ | head -5")
+    print "First 5 files in examples/:"
+    print $files
+
+    print "\n=== All Sandbox Tests Complete ==="
+}
