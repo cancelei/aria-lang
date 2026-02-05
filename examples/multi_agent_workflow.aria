@@ -1,0 +1,41 @@
+// Multi-Agent Workflow: Permission isolation
+
+tool echo(text: string) {
+    timeout: 5
+}
+
+agent Greeter {
+    allow echo
+    
+    task greet(name: string) {
+        print "Greeter task running..."
+        let $msg = str_concat("Hello, ", name)
+        let $result = echo($msg)
+        return $result
+    }
+}
+
+agent Reporter {
+    allow echo
+    
+    task report(status: string) {
+        print "Reporter task running..."
+        let $msg = str_concat("Status: ", status)
+        let $result = echo($msg)
+        return $result
+    }
+}
+
+main {
+    print "=== Multi-Agent Workflow ==="
+    
+    let $greeter = spawn Greeter
+    let $reporter = spawn Reporter
+    
+    print "Agents spawned"
+    
+    delegate greeter.greet("Aria")
+    delegate reporter.report("Complete")
+    
+    print "=== Workflow Complete ==="
+}

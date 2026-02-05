@@ -1,0 +1,32 @@
+// Quickstart: Your first Aria program
+// This demonstrates the basics of Aria-Lang
+
+main {
+    print "=== Welcome to Aria-Lang ==="
+    print ""
+    
+    think { "Starting my first program" }
+    
+    // Variables and string operations
+    let $name = "Aria"
+    let $upper = str_upper($name)
+    let $message = str_concat("Hello, ", $upper)
+    
+    print $message
+    
+    // More string operations
+    let $len = str_len($name)
+    print "Name length:"
+    print $len
+    
+    // Tool definition and execution
+    tool echo(text: string) {
+        timeout: 5
+    }
+    
+    print "\nCalling echo tool:"
+    let $result = echo("Aria-Lang is running!")
+    print $result
+    
+    print "\n=== Quickstart Complete ==="
+}

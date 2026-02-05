@@ -6,6 +6,27 @@ While other frameworks rely on **persuasion** (prompt engineering: *"Please don'
 
 **Status:** v0.1.0 (Contest Edition) - *Functional Prototype*
 
+## Quick Start
+
+```bash
+# Build
+git clone https://github.com/cancelei/aria-lang && cd aria-lang
+cargo build --release
+
+# Run your first program
+cargo run -- examples/quickstart.aria
+
+# See all examples
+ls examples/*.aria
+```
+
+**📚 Documentation:**
+- [QUICKSTART.md](QUICKSTART.md) - Get started in 10 minutes
+- [API_REFERENCE.md](API_REFERENCE.md) - All 24 builtin functions
+- [SUBMISSION.md](SUBMISSION.md) - Contest submission details
+
+**✅ Status:** 48/48 tests passing | 24 stdlib functions | 7 working examples
+
 ## 🌟 Why Aria-Lang?
 
 We are building a Digital Organism Runtime where:

@@ -1,0 +1,29 @@
+// Human-In-The-Loop Safety: Gate primitive demonstration
+
+tool shell(command: string) {
+    permission: "system.execute",
+    timeout: 30
+}
+
+main {
+    print "=== HITL Safety Demo ==="
+    
+    think { "Preparing to list files" }
+    
+    let $files = shell("ls /tmp/*.txt 2>/dev/null | head -3")
+    print "Files found:"
+    print $files
+    
+    think { "User approval required for cleanup operation" }
+    
+    gate "Delete temporary files?" {
+        think { "Human approved - proceeding with deletion" }
+        let $result = shell("echo 'Deletion simulated'")
+        print $result
+        print "Cleanup complete"
+    }
+    
+    think { "Operation finished safely" }
+    
+    print "=== Demo Complete ==="
+}

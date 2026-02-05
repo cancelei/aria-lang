@@ -25,7 +25,7 @@ pub fn execute_tool_command(
     let timeout_duration = Duration::from_secs_f64(timeout);
 
     // Spawn child process
-    let mut child = Command::new("sh")
+    let child = Command::new("sh")
         .arg("-c")
         .arg(&command_str)
         .stdout(Stdio::piped())
