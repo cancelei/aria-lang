@@ -1,7 +1,6 @@
 // JSON operations for Aria standard library
 
 use crate::eval::Value;
-use serde_json;
 
 /// Parse a JSON string
 /// Usage: json_parse(s: string) -> string (validated JSON)
@@ -16,8 +15,8 @@ pub fn json_parse(args: Vec<Value>) -> Result<Value, String> {
     };
 
     // Parse to validate, then return as string (for now)
-    let _parsed: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    let _parsed: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
 
     // Return the original string (validated)
     Ok(Value::String(json_str.clone()))
@@ -27,13 +26,16 @@ pub fn json_parse(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: json_stringify(v: any) -> string
 pub fn json_stringify(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 1 {
-        return Err(format!("json_stringify expects 1 argument, got {}", args.len()));
+        return Err(format!(
+            "json_stringify expects 1 argument, got {}",
+            args.len()
+        ));
     }
 
     let json_value = value_to_json(&args[0])?;
 
-    let json_str = serde_json::to_string(&json_value)
-        .map_err(|e| format!("Failed to stringify: {}", e))?;
+    let json_str =
+        serde_json::to_string(&json_value).map_err(|e| format!("Failed to stringify: {}", e))?;
 
     Ok(Value::String(json_str))
 }
@@ -55,20 +57,18 @@ pub fn json_get(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("json_get expects second argument to be a string".to_string()),
     };
 
-    let parsed: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
 
     match &parsed {
-        serde_json::Value::Object(map) => {
-            match map.get(key) {
-                Some(value) => {
-                    let result_str = serde_json::to_string(value)
-                        .map_err(|e| format!("Failed to serialize value: {}", e))?;
-                    Ok(Value::String(result_str))
-                }
-                None => Err(format!("Key '{}' not found in JSON object", key)),
+        serde_json::Value::Object(map) => match map.get(key) {
+            Some(value) => {
+                let result_str = serde_json::to_string(value)
+                    .map_err(|e| format!("Failed to serialize value: {}", e))?;
+                Ok(Value::String(result_str))
             }
-        }
+            None => Err(format!("Key '{}' not found in JSON object", key)),
+        },
         _ => Err("json_get expects a JSON object".to_string()),
     }
 }
@@ -77,11 +77,9 @@ pub fn json_get(args: Vec<Value>) -> Result<Value, String> {
 fn value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     match value {
         Value::String(s) => Ok(serde_json::Value::String(s.clone())),
-        Value::Number(n) => {
-            serde_json::Number::from_f64(*n)
-                .map(serde_json::Value::Number)
-                .ok_or("Invalid number for JSON".to_string())
-        }
+        Value::Number(n) => serde_json::Number::from_f64(*n)
+            .map(serde_json::Value::Number)
+            .ok_or("Invalid number for JSON".to_string()),
         Value::Null => Ok(serde_json::Value::Null),
         Value::Agent(a) => Ok(serde_json::Value::String(format!("Agent({})", a))),
     }

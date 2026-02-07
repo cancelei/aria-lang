@@ -1,14 +1,14 @@
-mod lexer;
 mod ast;
-mod parser;
-mod eval;
-mod tool_executor;
 mod builtins;
+mod eval;
+mod lexer;
+mod parser;
+mod tool_executor;
 
+use crate::eval::Evaluator;
+use crate::parser::Parser;
 use std::env;
 use std::fs;
-use crate::parser::Parser;
-use crate::eval::Evaluator;
 
 use std::io::{self, Write};
 
@@ -47,18 +47,22 @@ fn run_repl() {
     println!("Aria-Lang v0.1.0 REPL");
     println!("Type 'exit' to quit.");
     let mut evaluator = Evaluator::new();
-    
+
     loop {
         print!("aria> ");
         io::stdout().flush().unwrap();
-        
+
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
-        
+
         let input = input.trim();
-        if input == "exit" { break; }
-        if input.is_empty() { continue; }
-        
+        if input == "exit" {
+            break;
+        }
+        if input.is_empty() {
+            continue;
+        }
+
         let mut parser = Parser::new(input);
         match parser.parse_program() {
             Ok(program) => evaluator.eval_program(program),

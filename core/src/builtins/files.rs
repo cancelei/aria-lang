@@ -19,7 +19,10 @@ pub fn file_read(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: file_write(path: string, content: string) -> null
 pub fn file_write(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("file_write expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "file_write expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     // Use the existing tool_executor for write_file
@@ -32,7 +35,10 @@ pub fn file_write(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: file_exists(path: string) -> number (1 or 0)
 pub fn file_exists(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 1 {
-        return Err(format!("file_exists expects 1 argument, got {}", args.len()));
+        return Err(format!(
+            "file_exists expects 1 argument, got {}",
+            args.len()
+        ));
     }
 
     let path = match &args[0] {
@@ -41,7 +47,10 @@ pub fn file_exists(args: Vec<Value>) -> Result<Value, String> {
     };
 
     // Use test -f to check if file exists
-    let test_args = vec![Value::String(format!("test -f '{}' && echo '1' || echo '0'", path))];
+    let test_args = vec![Value::String(format!(
+        "test -f '{}' && echo '1' || echo '0'",
+        path
+    ))];
 
     match tool_executor::execute_tool_command("shell", &test_args, Some(5.0)) {
         Ok(Value::String(output)) => {
@@ -60,7 +69,10 @@ pub fn file_exists(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: file_append(path: string, content: string) -> null
 pub fn file_append(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("file_append expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "file_append expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let path = match &args[0] {
@@ -74,7 +86,11 @@ pub fn file_append(args: Vec<Value>) -> Result<Value, String> {
     };
 
     // Use shell command to append
-    let cmd = format!("echo '{}' >> '{}'", content.replace('\'', "'\\''"), path.replace('\'', "'\\''"));
+    let cmd = format!(
+        "echo '{}' >> '{}'",
+        content.replace('\'', "'\\''"),
+        path.replace('\'', "'\\''")
+    );
     let shell_args = vec![Value::String(cmd)];
 
     tool_executor::execute_tool_command("shell", &shell_args, Some(30.0))?;
@@ -129,7 +145,8 @@ mod tests {
         file_write(vec![
             Value::String(test_file.to_string()),
             Value::String("test".to_string()),
-        ]).unwrap();
+        ])
+        .unwrap();
 
         // Should exist now
         let result = file_exists(vec![Value::String(test_file.to_string())]);

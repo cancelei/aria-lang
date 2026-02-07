@@ -4,15 +4,15 @@
 use crate::eval::Value;
 use std::collections::HashMap;
 
-mod strings;
-mod json;
 mod arrays;
 mod files;
+mod json;
+mod strings;
 
-pub use strings::*;
-pub use json::*;
 pub use arrays::*;
 pub use files::*;
+pub use json::*;
+pub use strings::*;
 
 /// Built-in function types
 #[derive(Debug, Clone, PartialEq)]
@@ -112,7 +112,8 @@ impl BuiltinRegistry {
 
     /// Call a builtin function with the given arguments
     pub fn call(&self, name: &str, args: Vec<Value>) -> Result<Value, String> {
-        let func = self.get(name)
+        let func = self
+            .get(name)
             .ok_or(format!("Unknown builtin function: {}", name))?;
 
         match func {
@@ -150,6 +151,7 @@ impl BuiltinRegistry {
     }
 
     /// Get list of all registered function names
+    #[allow(dead_code)]
     pub fn list_functions(&self) -> Vec<String> {
         let mut names: Vec<String> = self.functions.keys().cloned().collect();
         names.sort();

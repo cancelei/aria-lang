@@ -2,13 +2,15 @@
 // Arrays are represented as JSON array strings internally
 
 use crate::eval::Value;
-use serde_json;
 
 /// Create an array by splitting a string
 /// Usage: arr_from_split(s: string, delim: string) -> string (JSON array)
 pub fn arr_from_split(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("arr_from_split expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "arr_from_split expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let s = match &args[0] {
@@ -23,8 +25,8 @@ pub fn arr_from_split(args: Vec<Value>) -> Result<Value, String> {
 
     let parts: Vec<String> = s.split(delim).map(|s| s.to_string()).collect();
 
-    let json = serde_json::to_string(&parts)
-        .map_err(|e| format!("Failed to serialize array: {}", e))?;
+    let json =
+        serde_json::to_string(&parts).map_err(|e| format!("Failed to serialize array: {}", e))?;
 
     Ok(Value::String(json))
 }
@@ -41,8 +43,8 @@ pub fn arr_len(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("arr_len expects a string (JSON array) argument".to_string()),
     };
 
-    let arr: Vec<serde_json::Value> = serde_json::from_str(arr_str)
-        .map_err(|e| format!("Invalid JSON array: {}", e))?;
+    let arr: Vec<serde_json::Value> =
+        serde_json::from_str(arr_str).map_err(|e| format!("Invalid JSON array: {}", e))?;
 
     Ok(Value::Number(arr.len() as f64))
 }
@@ -64,11 +66,15 @@ pub fn arr_get(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("arr_get expects second argument to be a number".to_string()),
     };
 
-    let arr: Vec<serde_json::Value> = serde_json::from_str(arr_str)
-        .map_err(|e| format!("Invalid JSON array: {}", e))?;
+    let arr: Vec<serde_json::Value> =
+        serde_json::from_str(arr_str).map_err(|e| format!("Invalid JSON array: {}", e))?;
 
     if index >= arr.len() {
-        return Err(format!("Index {} out of bounds (array length: {})", index, arr.len()));
+        return Err(format!(
+            "Index {} out of bounds (array length: {})",
+            index,
+            arr.len()
+        ));
     }
 
     // Convert the JSON value to a string
@@ -98,8 +104,8 @@ pub fn arr_join(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("arr_join expects second argument to be a string".to_string()),
     };
 
-    let arr: Vec<String> = serde_json::from_str(arr_str)
-        .map_err(|e| format!("Invalid JSON array: {}", e))?;
+    let arr: Vec<String> =
+        serde_json::from_str(arr_str).map_err(|e| format!("Invalid JSON array: {}", e))?;
 
     Ok(Value::String(arr.join(delim)))
 }
@@ -123,13 +129,13 @@ pub fn arr_push(args: Vec<Value>) -> Result<Value, String> {
         Value::Agent(a) => a.clone(),
     };
 
-    let mut arr: Vec<String> = serde_json::from_str(arr_str)
-        .map_err(|e| format!("Invalid JSON array: {}", e))?;
+    let mut arr: Vec<String> =
+        serde_json::from_str(arr_str).map_err(|e| format!("Invalid JSON array: {}", e))?;
 
     arr.push(item);
 
-    let json = serde_json::to_string(&arr)
-        .map_err(|e| format!("Failed to serialize array: {}", e))?;
+    let json =
+        serde_json::to_string(&arr).map_err(|e| format!("Failed to serialize array: {}", e))?;
 
     Ok(Value::String(json))
 }
@@ -146,8 +152,8 @@ pub fn arr_pop(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("arr_pop expects a string (JSON array) argument".to_string()),
     };
 
-    let mut arr: Vec<String> = serde_json::from_str(arr_str)
-        .map_err(|e| format!("Invalid JSON array: {}", e))?;
+    let mut arr: Vec<String> =
+        serde_json::from_str(arr_str).map_err(|e| format!("Invalid JSON array: {}", e))?;
 
     if arr.is_empty() {
         return Err("Cannot pop from empty array".to_string());
@@ -155,8 +161,8 @@ pub fn arr_pop(args: Vec<Value>) -> Result<Value, String> {
 
     arr.pop();
 
-    let json = serde_json::to_string(&arr)
-        .map_err(|e| format!("Failed to serialize array: {}", e))?;
+    let json =
+        serde_json::to_string(&arr).map_err(|e| format!("Failed to serialize array: {}", e))?;
 
     Ok(Value::String(json))
 }

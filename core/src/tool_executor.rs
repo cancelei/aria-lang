@@ -2,9 +2,12 @@
 // This module handles real tool execution with timeout enforcement and resource limits
 
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::time::{Duration, Instant};
 
 use crate::eval::Value;
 
@@ -66,7 +69,9 @@ pub fn execute_tool_command(
         let _ = watchdog.join(); // Clean up watchdog thread
         return Err(format!(
             "[Timeout] Tool '{}' exceeded timeout of {:.1}s (killed after {:.1}s)",
-            tool_name, timeout, elapsed.as_secs_f64()
+            tool_name,
+            timeout,
+            elapsed.as_secs_f64()
         ));
     }
 
@@ -79,8 +84,11 @@ pub fn execute_tool_command(
             if output.status.success() {
                 // Success - return stdout
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                println!("[Sandbox] Success in {:.2}s: {} bytes output",
-                    elapsed.as_secs_f64(), stdout.len());
+                println!(
+                    "[Sandbox] Success in {:.2}s: {} bytes output",
+                    elapsed.as_secs_f64(),
+                    stdout.len()
+                );
                 Ok(Value::String(stdout))
             } else {
                 // Command failed
@@ -92,9 +100,10 @@ pub fn execute_tool_command(
                 ))
             }
         }
-        Err(e) => {
-            Err(format!("[Sandbox Error] Failed to execute tool '{}': {}", tool_name, e))
-        }
+        Err(e) => Err(format!(
+            "[Sandbox Error] Failed to execute tool '{}': {}",
+            tool_name, e
+        )),
     }
 }
 
@@ -129,11 +138,17 @@ fn build_command_string(tool_name: &str, args: &[Value]) -> Result<String, Strin
         "write_file" => {
             // write_file(path, content) - write content to file
             if args.len() < 2 {
-                return Err("[Tool Error] write_file() requires path and content arguments".to_string());
+                return Err(
+                    "[Tool Error] write_file() requires path and content arguments".to_string(),
+                );
             }
             let path = value_to_string(&args[0]);
             let content = value_to_string(&args[1]);
-            Ok(format!("echo '{}' > '{}'", escape_shell_arg(&content), escape_shell_arg(&path)))
+            Ok(format!(
+                "echo '{}' > '{}'",
+                escape_shell_arg(&content),
+                escape_shell_arg(&path)
+            ))
         }
         _ => {
             // Unknown tool - try to execute as command with args

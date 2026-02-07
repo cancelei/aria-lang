@@ -1,5 +1,5 @@
+use crate::ast::{Expr, Program, Statement};
 use crate::lexer::Token;
-use crate::ast::{Expr, Statement, Program};
 use logos::{Lexer, Logos};
 
 pub struct Parser<'a> {
@@ -19,11 +19,11 @@ impl<'a> Parser<'a> {
     }
 
     fn expect(&mut self, expected: Token) -> Result<(), String> {
-        if let Some(Ok(token)) = &self.current {
-            if *token == expected {
-                self.advance();
-                return Ok(());
-            }
+        if let Some(Ok(token)) = &self.current
+            && *token == expected
+        {
+            self.advance();
+            return Ok(());
         }
         Err(format!("Expected {:?}, found {:?}", expected, self.current))
     }
@@ -52,9 +52,12 @@ impl<'a> Parser<'a> {
                     }
 
                     let value = self.parse_expr()?;
-                    Ok(Statement::Let { name: var_name, value })
+                    Ok(Statement::Let {
+                        name: var_name,
+                        value,
+                    })
                 } else {
-                    return Err("Expected variable name after 'let'".to_string());
+                    Err("Expected variable name after 'let'".to_string())
                 }
             }
             Some(Ok(Token::Print)) => {
@@ -75,7 +78,9 @@ impl<'a> Parser<'a> {
                 self.expect(Token::LBrace)?;
                 let mut body = Vec::new();
                 while let Some(Ok(token)) = &self.current {
-                    if *token == Token::RBrace { break; }
+                    if *token == Token::RBrace {
+                        break;
+                    }
                     body.push(self.parse_statement()?);
                 }
                 self.expect(Token::RBrace)?;
@@ -100,7 +105,9 @@ impl<'a> Parser<'a> {
                 let mut body = Vec::new();
 
                 while let Some(Ok(token)) = &self.current {
-                    if *token == Token::RBrace { break; }
+                    if *token == Token::RBrace {
+                        break;
+                    }
 
                     match token {
                         Token::Allow => {
@@ -125,7 +132,12 @@ impl<'a> Parser<'a> {
 
                 // If we have allow_list or tasks, return AgentDef, otherwise AgentBlock
                 if !allow_list.is_empty() || !tasks.is_empty() {
-                    Ok(Statement::AgentDef { name, allow_list, tasks, body })
+                    Ok(Statement::AgentDef {
+                        name,
+                        allow_list,
+                        tasks,
+                        body,
+                    })
                 } else {
                     Ok(Statement::AgentBlock { name, body })
                 }
@@ -150,14 +162,8 @@ impl<'a> Parser<'a> {
         let mut expr = self.parse_primary()?;
 
         // Check for function call or member access
-        loop {
-            match &self.current {
-                Some(Ok(Token::LParen)) => {
-                    // Parse function call
-                    expr = self.parse_call(expr)?;
-                }
-                _ => break,
-            }
+        while let Some(Ok(Token::LParen)) = &self.current {
+            expr = self.parse_call(expr)?;
         }
 
         Ok(expr)
@@ -208,7 +214,9 @@ impl<'a> Parser<'a> {
         self.expect(Token::LParen)?;
         let mut params = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RParen { break; }
+            if *token == Token::RParen {
+                break;
+            }
 
             if let Token::Ident(param) = token {
                 params.push(param.clone());
@@ -239,7 +247,9 @@ impl<'a> Parser<'a> {
         let mut timeout = None;
 
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RBrace { break; }
+            if *token == Token::RBrace {
+                break;
+            }
 
             match token {
                 Token::Permission => {
@@ -288,7 +298,9 @@ impl<'a> Parser<'a> {
 
         let mut args = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RParen { break; }
+            if *token == Token::RParen {
+                break;
+            }
 
             args.push(self.parse_expr()?);
 
@@ -335,7 +347,9 @@ impl<'a> Parser<'a> {
         self.expect(Token::LParen)?;
         let mut params = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RParen { break; }
+            if *token == Token::RParen {
+                break;
+            }
 
             if let Token::Ident(param) = token {
                 params.push(param.clone());
@@ -363,16 +377,14 @@ impl<'a> Parser<'a> {
         self.expect(Token::LBrace)?;
         let mut body = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RBrace { break; }
+            if *token == Token::RBrace {
+                break;
+            }
             body.push(self.parse_statement()?);
         }
         self.expect(Token::RBrace)?;
 
-        Ok(crate::ast::TaskDef {
-            name,
-            params,
-            body,
-        })
+        Ok(crate::ast::TaskDef { name, params, body })
     }
 
     // Step 6: Parse spawn statements
@@ -435,7 +447,9 @@ impl<'a> Parser<'a> {
         self.expect(Token::LParen)?;
         let mut args = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RParen { break; }
+            if *token == Token::RParen {
+                break;
+            }
 
             args.push(self.parse_expr()?);
 
@@ -458,7 +472,9 @@ impl<'a> Parser<'a> {
         self.expect(Token::LBrace)?;
         let mut body = Vec::new();
         while let Some(Ok(token)) = &self.current {
-            if *token == Token::RBrace { break; }
+            if *token == Token::RBrace {
+                break;
+            }
             body.push(self.parse_statement()?);
         }
         self.expect(Token::RBrace)?;

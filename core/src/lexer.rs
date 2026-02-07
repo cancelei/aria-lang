@@ -2,7 +2,7 @@ use logos::Logos;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace
-#[logos(skip r"//[^\n]*")]  // Skip line comments
+#[logos(skip r"//[^\n]*")] // Skip line comments
 pub enum Token {
     // Keywords
     #[token("let")]
@@ -39,7 +39,7 @@ pub enum Token {
     // Sigils
     #[regex(r"\$[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     VarIdent(String),
-    
+
     #[regex(r"@[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     AgentIdent(String),
 
@@ -96,7 +96,10 @@ mod tests {
         assert_eq!(lex.next(), Some(Ok(Token::VarIdent("$name".to_string()))));
         assert_eq!(lex.next(), Some(Ok(Token::Assign)));
         assert_eq!(lex.next(), Some(Ok(Token::String("Aria".to_string()))));
-        assert_eq!(lex.next(), Some(Ok(Token::AgentIdent("@agent".to_string()))));
+        assert_eq!(
+            lex.next(),
+            Some(Ok(Token::AgentIdent("@agent".to_string())))
+        );
         assert_eq!(lex.next(), Some(Ok(Token::LBrace)));
     }
 

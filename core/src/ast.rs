@@ -8,6 +8,7 @@ pub enum Expr {
         name: String,
         args: Vec<Expr>,
     },
+    #[allow(dead_code)]
     MemberAccess {
         object: Box<Expr>,
         member: String,

@@ -19,7 +19,10 @@ pub fn str_len(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: str_concat(s1: string, s2: string) -> string
 pub fn str_concat(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("str_concat expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "str_concat expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let s1 = match &args[0] {
@@ -78,7 +81,10 @@ pub fn str_trim(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: str_contains(haystack: string, needle: string) -> number (1 or 0)
 pub fn str_contains(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("str_contains expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "str_contains expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let haystack = match &args[0] {
@@ -91,14 +97,21 @@ pub fn str_contains(args: Vec<Value>) -> Result<Value, String> {
         _ => return Err("str_contains expects string arguments".to_string()),
     };
 
-    Ok(Value::Number(if haystack.contains(needle) { 1.0 } else { 0.0 }))
+    Ok(Value::Number(if haystack.contains(needle) {
+        1.0
+    } else {
+        0.0
+    }))
 }
 
 /// Replace all occurrences of a substring
 /// Usage: str_replace(s: string, old: string, new: string) -> string
 pub fn str_replace(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 3 {
-        return Err(format!("str_replace expects 3 arguments, got {}", args.len()));
+        return Err(format!(
+            "str_replace expects 3 arguments, got {}",
+            args.len()
+        ));
     }
 
     let s = match &args[0] {
@@ -139,8 +152,8 @@ pub fn str_split(args: Vec<Value>) -> Result<Value, String> {
     let parts: Vec<String> = s.split(delim).map(|s| s.to_string()).collect();
 
     // Return as JSON array string for now (until we have proper array type)
-    let json = serde_json::to_string(&parts)
-        .map_err(|e| format!("Failed to serialize array: {}", e))?;
+    let json =
+        serde_json::to_string(&parts).map_err(|e| format!("Failed to serialize array: {}", e))?;
 
     Ok(Value::String(json))
 }
@@ -149,7 +162,10 @@ pub fn str_split(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: str_starts_with(s: string, prefix: string) -> number (1 or 0)
 pub fn str_starts_with(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("str_starts_with expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "str_starts_with expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let s = match &args[0] {
@@ -169,7 +185,10 @@ pub fn str_starts_with(args: Vec<Value>) -> Result<Value, String> {
 /// Usage: str_ends_with(s: string, suffix: string) -> number (1 or 0)
 pub fn str_ends_with(args: Vec<Value>) -> Result<Value, String> {
     if args.len() != 2 {
-        return Err(format!("str_ends_with expects 2 arguments, got {}", args.len()));
+        return Err(format!(
+            "str_ends_with expects 2 arguments, got {}",
+            args.len()
+        ));
     }
 
     let s = match &args[0] {
