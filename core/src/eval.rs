@@ -1,8 +1,10 @@
+use crate::ast::{Expr, Program, Statement, TaskDef};
+use crate::tool_executor;
 use std::collections::HashMap;
-use crate::ast::{Program, Statement, Expr, TaskDef};
 
 // Day 3: Tool definition storage
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Tool {
     pub name: String,
     pub params: Vec<String>,
@@ -12,6 +14,7 @@ pub struct Tool {
 
 // Day 3: Agent definition (the "type" of agent)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AgentDef {
     pub name: String,
     pub allow_list: Vec<String>,
@@ -21,6 +24,7 @@ pub struct AgentDef {
 
 // Day 3: Agent instance (a running agent with scoped permissions)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AgentInstance {
     pub name: String,
     pub agent_def_name: String,
@@ -33,12 +37,14 @@ pub struct Evaluator {
     pub tools: HashMap<String, Tool>,
     pub agent_defs: HashMap<String, AgentDef>,
     pub agents: HashMap<String, AgentInstance>,
+    pub current_agent: Option<String>, // Day 4: Execution context tracking
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     String(String),
     Number(f64),
+    #[allow(dead_code)]
     Null,
     Agent(String), // NEW: Represents an agent instance
 }
@@ -50,6 +56,7 @@ impl Evaluator {
             tools: HashMap::new(),
             agent_defs: HashMap::new(),
             agents: HashMap::new(),
+            current_agent: None, // Day 4: Start in main context (unrestricted)
         }
     }
 
@@ -83,14 +90,19 @@ impl Evaluator {
             }
             Statement::Gate { prompt, body } => {
                 let p = self.eval_expr(prompt)?;
-                println!("[GATE] {}", match p {
-                    Value::String(s) => s,
-                    _ => format!("{:?}", p),
-                });
+                println!(
+                    "[GATE] {}",
+                    match p {
+                        Value::String(s) => s,
+                        _ => format!("{:?}", p),
+                    }
+                );
                 println!("(Simulating Human Approval: Press Enter to Continue)");
                 let mut input = String::new();
-                std::io::stdin().read_line(&mut input).map_err(|e| e.to_string())?;
-                
+                std::io::stdin()
+                    .read_line(&mut input)
+                    .map_err(|e| e.to_string())?;
+
                 for s in body {
                     self.eval_statement(s)?;
                 }
@@ -102,17 +114,30 @@ impl Evaluator {
                 }
                 println!("[Exiting Agent Context: {}]", name);
             }
-            Statement::ToolDef { name, params, permission, timeout } => {
+            Statement::ToolDef {
+                name,
+                params,
+                permission,
+                timeout,
+            } => {
                 self.eval_tool_def(name, params, permission, timeout)?;
             }
-            Statement::AgentDef { name, allow_list, tasks, body } => {
+            Statement::AgentDef {
+                name,
+                allow_list,
+                tasks,
+                body,
+            } => {
                 self.eval_agent_def(name, allow_list, tasks, body)?;
             }
             Statement::TaskDef(_) => {
                 // TODO: Implement task definitions
                 return Err("Task definitions not yet implemented".to_string());
             }
-            Statement::Spawn { var_name, agent_name } => {
+            Statement::Spawn {
+                var_name,
+                agent_name,
+            } => {
                 self.eval_spawn(var_name, agent_name)?;
             }
             Statement::Delegate { call } => {
@@ -120,9 +145,15 @@ impl Evaluator {
             }
             Statement::Main { body } => {
                 println!("[Entering Main Block]");
+                // Day 4: Ensure we're in main context (unrestricted)
+                let previous_agent = self.current_agent.clone();
+                self.current_agent = None;
+
                 for s in body {
                     self.eval_statement(s)?;
                 }
+
+                self.current_agent = previous_agent;
                 println!("[Exiting Main Block]");
             }
             Statement::Return(expr) => {
@@ -146,7 +177,10 @@ impl Evaluator {
                 // Format: "agent_var.task_name"
                 let parts: Vec<&str> = name.split('.').collect();
                 if parts.len() != 2 {
-                    return Err(format!("Invalid delegate call format: '{}'. Expected 'agent.task'", name));
+                    return Err(format!(
+                        "Invalid delegate call format: '{}'. Expected 'agent.task'",
+                        name
+                    ));
                 }
 
                 let mut agent_var = parts[0].to_string();
@@ -160,7 +194,8 @@ impl Evaluator {
                     // Try with $ prefix
                     let prefixed = format!("${}", agent_var);
                     agent_var = prefixed.clone();
-                    self.agents.get(&prefixed)
+                    self.agents
+                        .get(&prefixed)
                         .ok_or(format!("Agent instance '{}' not found", parts[0]))?
                 } else {
                     return Err(format!("Agent instance '{}' not found", agent_var));
@@ -168,16 +203,28 @@ impl Evaluator {
 
                 // Get agent definition
                 let agent_def_name = agent_instance.agent_def_name.clone();
-                let agent_def = self.agent_defs.get(&agent_def_name)
+                let agent_def = self
+                    .agent_defs
+                    .get(&agent_def_name)
                     .ok_or(format!("Agent definition '{}' not found", agent_def_name))?;
 
                 // Find the task in the agent definition
-                let task = agent_def.tasks.iter()
+                let task = agent_def
+                    .tasks
+                    .iter()
                     .find(|t| t.name == task_name)
-                    .ok_or(format!("Task '{}' not found in agent '{}'", task_name, agent_def_name))?
+                    .ok_or(format!(
+                        "Task '{}' not found in agent '{}'",
+                        task_name, agent_def_name
+                    ))?
                     .clone();
 
-                println!("[Delegating] {}.{}() with {} args", agent_var, task_name, args.len());
+                println!(
+                    "[Delegating] {}.{}() with {} args",
+                    agent_var,
+                    task_name,
+                    args.len()
+                );
 
                 // Evaluate arguments
                 let mut evaluated_args = Vec::new();
@@ -203,35 +250,72 @@ impl Evaluator {
                     self.variables.insert(param.clone(), value.clone());
                 }
 
-                // Execute task body
+                // Day 4: Save current execution context
+                let previous_agent = self.current_agent.clone();
+
+                // Day 4: Set agent context for task execution
+                self.current_agent = Some(agent_var.clone());
+                println!("[Context Switch] Entering agent context: {}", agent_var);
+
+                // Execute task body with proper error handling
                 for stmt in task.body {
-                    self.eval_statement(stmt)?;
+                    if let Err(e) = self.eval_statement(stmt) {
+                        self.current_agent = previous_agent; // Restore on error
+                        self.variables = old_variables;
+                        return Err(e);
+                    }
                 }
 
+                // Day 4: Restore previous execution context
+                self.current_agent = previous_agent;
+                println!("[Context Switch] Exiting agent context: {}", agent_var);
+
                 // Restore original scope
-                // In a more sophisticated version, we'd handle return values
                 self.variables = old_variables;
 
                 Ok(())
             }
-            _ => {
-                Err("Delegate expects call expression (agent.task())".to_string())
-            }
+            _ => Err("Delegate expects call expression (agent.task())".to_string()),
         }
     }
 
-    // Day 3 - Step 11: Function Calls with Permission Checking (THE PHYSICS!)
-    fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
-        // Check if tool is defined and clone permission (to avoid borrow issues)
-        let permission = {
-            let tool = self.tools.get(name)
-                .ok_or(format!("Tool '{}' is not defined", name))?;
-            tool.permission.clone()
+    // Day 4: Function Calls with Permission Enforcement (THE PHYSICS!)
+    pub fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
+        // Check if tool is defined and get its metadata
+        let (permission, timeout) = {
+            let tool = self
+                .tools
+                .get(name)
+                .ok_or(format!("Unknown function or tool: '{}'", name))?;
+            (tool.permission.clone(), tool.timeout)
         };
 
-        // TODO: For now, we'll skip permission checking since we don't track "current agent context"
-        // In a real implementation, we'd need to know which agent is making the call
-        // For now, just log and execute
+        // Day 4: PERMISSION ENFORCEMENT
+        if let Some(agent_name) = &self.current_agent {
+            // Agent context - check permissions against allow list
+            let agent_instance = self
+                .agents
+                .get(agent_name)
+                .ok_or(format!("[Internal Error] Agent '{}' not found", agent_name))?;
+
+            if !agent_instance.allowed_tools.contains(&name.to_string()) {
+                return Err(format!(
+                    "[Permission Denied] Agent '{}' attempted to call tool '{}' but it is not in the allow list. Allowed tools: {:?}",
+                    agent_name, name, agent_instance.allowed_tools
+                ));
+            }
+
+            println!(
+                "[Permission Check] Agent '{}' is ALLOWED to call '{}'",
+                agent_name, name
+            );
+        } else {
+            // Main context - unrestricted
+            println!(
+                "[Permission Check] Main context - tool '{}' allowed (unrestricted)",
+                name
+            );
+        }
 
         // Evaluate arguments
         let mut evaluated_args = Vec::new();
@@ -239,21 +323,23 @@ impl Evaluator {
             evaluated_args.push(self.eval_expr(arg)?);
         }
 
-        // Log the call (in real implementation, this would actually execute)
-        println!("[Tool Call] {} with {} args (permission: {:?})",
-                 name, evaluated_args.len(), permission);
+        // Day 4: Execute in sandbox
+        println!(
+            "[Tool Call] {} with {} args (permission: {:?}, timeout: {:?}s)",
+            name,
+            evaluated_args.len(),
+            permission,
+            timeout
+        );
 
-        // Return a dummy result
-        Ok(Value::String(format!("Result from {}", name)))
+        tool_executor::execute_tool_command(name, &evaluated_args, timeout)
     }
 
     // Day 3 - Step 10: Agent Spawning (Instantiation)
-    fn eval_spawn(
-        &mut self,
-        var_name: String,
-        agent_name: String,
-    ) -> Result<(), String> {
-        let def = self.agent_defs.get(&agent_name)
+    pub fn eval_spawn(&mut self, var_name: String, agent_name: String) -> Result<(), String> {
+        let def = self
+            .agent_defs
+            .get(&agent_name)
             .ok_or(format!("Agent '{}' not defined", agent_name))?;
 
         let instance = AgentInstance {
@@ -264,15 +350,18 @@ impl Evaluator {
         };
 
         self.agents.insert(var_name.clone(), instance);
-        self.variables.insert(var_name.clone(), Value::Agent(var_name.clone()));
+        self.variables
+            .insert(var_name.clone(), Value::Agent(var_name.clone()));
 
-        println!("[Agent Spawned] {} as {} (permissions: {:?})",
-                 agent_name, var_name, def.allow_list);
+        println!(
+            "[Agent Spawned] {} as {} (permissions: {:?})",
+            agent_name, var_name, def.allow_list
+        );
         Ok(())
     }
 
     // Day 3 - Step 9: Agent Definition Registration
-    fn eval_agent_def(
+    pub fn eval_agent_def(
         &mut self,
         name: String,
         allow_list: Vec<String>,
@@ -286,12 +375,16 @@ impl Evaluator {
             body,
         };
         self.agent_defs.insert(name.clone(), agent_def);
-        println!("[Agent Defined] {} (allows {} tools)", name, allow_list.len());
+        println!(
+            "[Agent Defined] {} (allows {} tools)",
+            name,
+            allow_list.len()
+        );
         Ok(())
     }
 
     // Day 3 - Step 8: Tool Registration
-    fn eval_tool_def(
+    pub fn eval_tool_def(
         &mut self,
         name: String,
         params: Vec<String>,
@@ -305,7 +398,11 @@ impl Evaluator {
             timeout,
         };
         self.tools.insert(name.clone(), tool);
-        println!("[Tool Registered] {} with {} params", name, self.tools.get(&name).unwrap().params.len());
+        println!(
+            "[Tool Registered] {} with {} params",
+            name,
+            self.tools.get(&name).unwrap().params.len()
+        );
         Ok(())
     }
 
@@ -313,11 +410,13 @@ impl Evaluator {
         match expr {
             Expr::String(s) => Ok(Value::String(s)),
             Expr::Number(n) => Ok(Value::Number(n)),
-            Expr::Var(v) => self.variables.get(&v).cloned().ok_or(format!("Undefined variable: {}", v)),
+            Expr::Var(v) => self
+                .variables
+                .get(&v)
+                .cloned()
+                .ok_or(format!("Undefined variable: {}", v)),
             Expr::Agent(a) => Ok(Value::String(format!("Context:{}", a))),
-            Expr::Call { name, args } => {
-                self.eval_call(&name, args)
-            }
+            Expr::Call { name, args } => self.eval_call(&name, args),
             Expr::MemberAccess { .. } => {
                 // TODO: Implement member access
                 Err("Member access not yet implemented".to_string())

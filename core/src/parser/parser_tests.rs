@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use crate::ast::{Expr, Statement};
     use crate::parser::Parser;
-    use crate::ast::{Statement, Expr};
 
     #[test]
     fn test_parse_let() {
@@ -41,7 +41,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::ToolDef { name, params, permission, timeout } = &program.statements[0] {
+        if let Statement::ToolDef {
+            name,
+            params,
+            permission,
+            timeout,
+        } = &program.statements[0]
+        {
             assert_eq!(name, "shell");
             assert_eq!(params, &vec!["command".to_string()]);
             assert_eq!(permission, &Some("system.execute".to_string()));
@@ -59,7 +65,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::ToolDef { name, params, permission, timeout } = &program.statements[0] {
+        if let Statement::ToolDef {
+            name,
+            params,
+            permission,
+            timeout,
+        } = &program.statements[0]
+        {
             assert_eq!(name, "fetch");
             assert_eq!(params, &vec!["url".to_string()]);
             assert_eq!(permission, &Some("network.http".to_string()));
@@ -120,7 +132,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::AgentDef { name, allow_list, tasks, body: _ } = &program.statements[0] {
+        if let Statement::AgentDef {
+            name,
+            allow_list,
+            tasks,
+            body: _,
+        } = &program.statements[0]
+        {
             assert_eq!(name, "DevOpsAssistant");
             assert_eq!(allow_list, &vec!["shell".to_string()]);
             assert_eq!(tasks.len(), 0);
@@ -141,7 +159,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::AgentDef { name, allow_list, tasks, body: _ } = &program.statements[0] {
+        if let Statement::AgentDef {
+            name,
+            allow_list,
+            tasks,
+            body: _,
+        } = &program.statements[0]
+        {
             assert_eq!(name, "DevOpsAssistant");
             assert_eq!(allow_list, &vec!["shell".to_string()]);
             assert_eq!(tasks.len(), 1);
@@ -163,7 +187,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::AgentDef { name, allow_list: _, tasks, body: _ } = &program.statements[0] {
+        if let Statement::AgentDef {
+            name,
+            allow_list: _,
+            tasks,
+            body: _,
+        } = &program.statements[0]
+        {
             assert_eq!(name, "Worker");
             assert_eq!(tasks.len(), 1);
             assert_eq!(tasks[0].name, "process");
@@ -180,7 +210,11 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
-        if let Statement::Spawn { var_name, agent_name } = &program.statements[0] {
+        if let Statement::Spawn {
+            var_name,
+            agent_name,
+        } = &program.statements[0]
+        {
             assert_eq!(var_name, "$bot");
             assert_eq!(agent_name, "DevOpsAssistant");
         } else {
