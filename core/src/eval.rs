@@ -2,6 +2,7 @@ use crate::ast::{Expr, Program, Statement, TaskDef};
 use crate::builtins::BuiltinRegistry;
 use crate::tool_executor;
 use std::collections::HashMap;
+use std::fmt;
 
 // Day 5: Runtime resource limits - The Immune System
 #[derive(Debug, Clone)]
@@ -67,15 +68,26 @@ pub struct Evaluator {
     pub limits: ResourceLimits,        // Day 5: Configurable resource limits
     pub tracker: ResourceTracker,      // Day 5: Runtime resource usage tracking
     pub builtins: BuiltinRegistry,     // Day 6: Standard library functions
+    pub output: Vec<String>,           // Captured runtime trace for testing
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     String(String),
     Number(f64),
-    #[allow(dead_code)]
     Null,
     Agent(String), // NEW: Represents an agent instance
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::String(s) => write!(f, "{}", s),
+            Value::Number(n) => write!(f, "{}", n),
+            Value::Null => write!(f, "null"),
+            Value::Agent(a) => write!(f, "[Agent: {}]", a),
+        }
+    }
 }
 
 impl Evaluator {
@@ -89,6 +101,7 @@ impl Evaluator {
             limits: ResourceLimits::default(),   // Day 5: Default resource limits
             tracker: ResourceTracker::default(), // Day 5: Fresh resource tracker
             builtins: BuiltinRegistry::new(),    // Day 6: Initialize stdlib
+            output: Vec::new(),
         }
     }
 
@@ -99,6 +112,12 @@ impl Evaluator {
             limits,
             ..Self::new()
         }
+    }
+
+    /// Emit a runtime trace message (captured in output vec and printed to stdout)
+    fn emit(&mut self, msg: String) {
+        println!("{}", msg);
+        self.output.push(msg);
     }
 
     pub fn eval_program(&mut self, program: Program) {
@@ -127,27 +146,22 @@ impl Evaluator {
             }
             Statement::Print(expr) => {
                 let val = self.eval_expr(expr)?;
-                match val {
-                    Value::String(s) => println!("{}", s),
-                    Value::Number(n) => println!("{}", n),
-                    Value::Null => println!("null"),
-                    Value::Agent(a) => println!("[Agent: {}]", a),
-                }
+                self.emit(format!("{}", val));
             }
             Statement::Think(expr) => {
                 let val = self.eval_expr(expr)?;
-                println!("[Thinking...] {:?}", val);
+                self.emit(format!("[Thinking...] {:?}", val));
             }
             Statement::Gate { prompt, body } => {
                 let p = self.eval_expr(prompt)?;
-                println!(
+                self.emit(format!(
                     "[GATE] {}",
                     match p {
                         Value::String(s) => s,
                         _ => format!("{:?}", p),
                     }
-                );
-                println!("(Simulating Human Approval: Press Enter to Continue)");
+                ));
+                self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
                 let mut input = String::new();
                 std::io::stdin()
                     .read_line(&mut input)
@@ -158,11 +172,11 @@ impl Evaluator {
                 }
             }
             Statement::AgentBlock { name, body } => {
-                println!("[Entering Agent Context: {}]", name);
+                self.emit(format!("[Entering Agent Context: {}]", name));
                 for s in body {
                     self.eval_statement(s)?;
                 }
-                println!("[Exiting Agent Context: {}]", name);
+                self.emit(format!("[Exiting Agent Context: {}]", name));
             }
             Statement::ToolDef {
                 name,
@@ -194,7 +208,7 @@ impl Evaluator {
                 self.eval_delegate(call)?;
             }
             Statement::Main { body } => {
-                println!("[Entering Main Block]");
+                self.emit("[Entering Main Block]".to_string());
                 // Day 4: Ensure we're in main context (unrestricted)
                 let previous_agent = self.current_agent.clone();
                 self.current_agent = None;
@@ -204,13 +218,13 @@ impl Evaluator {
                 }
 
                 self.current_agent = previous_agent;
-                println!("[Exiting Main Block]");
+                self.emit("[Exiting Main Block]".to_string());
             }
             Statement::Return(expr) => {
                 // TODO: Implement proper return handling with value propagation
                 // For now, just evaluate the expression and log it
                 let val = self.eval_expr(expr)?;
-                println!("[Return] {:?}", val);
+                self.emit(format!("[Return] {:?}", val));
             }
         }
         Ok(())
@@ -269,12 +283,12 @@ impl Evaluator {
                     ))?
                     .clone();
 
-                println!(
+                self.emit(format!(
                     "[Delegating] {}.{}() with {} args",
                     agent_var,
                     task_name,
                     args.len()
-                );
+                ));
 
                 // Evaluate arguments
                 let mut evaluated_args = Vec::new();
@@ -315,7 +329,10 @@ impl Evaluator {
 
                 // Day 4: Set agent context for task execution
                 self.current_agent = Some(agent_var.clone());
-                println!("[Context Switch] Entering agent context: {}", agent_var);
+                self.emit(format!(
+                    "[Context Switch] Entering agent context: {}",
+                    agent_var
+                ));
 
                 // Execute task body with proper error handling
                 for stmt in task.body {
@@ -332,7 +349,10 @@ impl Evaluator {
 
                 // Day 4: Restore previous execution context
                 self.current_agent = previous_agent;
-                println!("[Context Switch] Exiting agent context: {}", agent_var);
+                self.emit(format!(
+                    "[Context Switch] Exiting agent context: {}",
+                    agent_var
+                ));
 
                 // Restore original scope
                 self.variables = old_variables;
@@ -352,7 +372,11 @@ impl Evaluator {
             for arg in args {
                 evaluated_args.push(self.eval_expr(arg)?);
             }
-            println!("[Builtin Call] {} with {} args", name, evaluated_args.len());
+            self.emit(format!(
+                "[Builtin Call] {} with {} args",
+                name,
+                evaluated_args.len()
+            ));
             return self.builtins.call(name, evaluated_args);
         }
 
@@ -380,16 +404,16 @@ impl Evaluator {
                 ));
             }
 
-            println!(
+            self.emit(format!(
                 "[Permission Check] Agent '{}' is ALLOWED to call '{}'",
                 agent_name, name
-            );
+            ));
         } else {
             // Main context - unrestricted
-            println!(
+            self.emit(format!(
                 "[Permission Check] Main context - tool '{}' allowed (unrestricted)",
                 name
-            );
+            ));
         }
 
         // Evaluate arguments
@@ -399,13 +423,13 @@ impl Evaluator {
         }
 
         // Day 4: Execute in sandbox
-        println!(
+        self.emit(format!(
             "[Tool Call] {} with {} args (permission: {:?}, timeout: {:?}s)",
             name,
             evaluated_args.len(),
             permission,
             timeout
-        );
+        ));
 
         tool_executor::execute_tool_command(
             name,
@@ -433,10 +457,10 @@ impl Evaluator {
         self.variables
             .insert(var_name.clone(), Value::Agent(var_name.clone()));
 
-        println!(
+        self.emit(format!(
             "[Agent Spawned] {} as {} (permissions: {:?})",
             agent_name, var_name, def.allow_list
-        );
+        ));
         Ok(())
     }
 
@@ -455,11 +479,11 @@ impl Evaluator {
             body,
         };
         self.agent_defs.insert(name.clone(), agent_def);
-        println!(
+        self.emit(format!(
             "[Agent Defined] {} (allows {} tools)",
             name,
             allow_list.len()
-        );
+        ));
         Ok(())
     }
 
@@ -478,11 +502,11 @@ impl Evaluator {
             timeout,
         };
         self.tools.insert(name.clone(), tool);
-        println!(
+        self.emit(format!(
             "[Tool Registered] {} with {} params",
             name,
             self.tools.get(&name).unwrap().params.len()
-        );
+        ));
         Ok(())
     }
 

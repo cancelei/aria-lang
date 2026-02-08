@@ -201,4 +201,21 @@ mod tests {
             panic!("Expected Ok(String)");
         }
     }
+
+    #[test]
+    fn test_arr_get_out_of_bounds() {
+        let result = arr_get(vec![
+            Value::String(r#"["a","b"]"#.to_string()),
+            Value::Number(5.0),
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("out of bounds"));
+    }
+
+    #[test]
+    fn test_arr_pop_empty() {
+        let result = arr_pop(vec![Value::String("[]".to_string())]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty array"));
+    }
 }

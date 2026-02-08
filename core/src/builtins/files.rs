@@ -127,4 +127,40 @@ mod tests {
         let result = file_exists(vec![Value::String("/nonexistent_path_12345".to_string())]);
         assert_eq!(result, Ok(Value::Number(0.0)));
     }
+
+    #[test]
+    fn test_file_read_nonexistent() {
+        let result = file_read(vec![Value::String(
+            "/nonexistent_path_aria_test_12345.txt".to_string(),
+        )]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to read"));
+    }
+
+    #[test]
+    fn test_file_append() {
+        let path = "/tmp/aria_test_append.txt";
+        // Clean up from any previous test run
+        let _ = fs::remove_file(path);
+
+        // Append twice
+        let result1 = file_append(vec![
+            Value::String(path.to_string()),
+            Value::String("hello".to_string()),
+        ]);
+        assert!(result1.is_ok());
+
+        let result2 = file_append(vec![
+            Value::String(path.to_string()),
+            Value::String(" world".to_string()),
+        ]);
+        assert!(result2.is_ok());
+
+        // Read and verify
+        let content = fs::read_to_string(path).unwrap();
+        assert_eq!(content, "hello world");
+
+        // Cleanup
+        let _ = fs::remove_file(path);
+    }
 }

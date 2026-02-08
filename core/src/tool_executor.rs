@@ -261,4 +261,49 @@ mod tests {
             assert!(s.contains("TRUNCATED"));
         }
     }
+
+    #[test]
+    fn test_build_command_read_file() {
+        let (prog, args) =
+            build_command("read_file", &[Value::String("/tmp/test.txt".to_string())]).unwrap();
+        assert_eq!(prog, "cat");
+        assert_eq!(args, vec!["/tmp/test.txt"]);
+    }
+
+    #[test]
+    fn test_build_command_write_file() {
+        let (prog, args) = build_command(
+            "write_file",
+            &[
+                Value::String("/tmp/out.txt".to_string()),
+                Value::String("content".to_string()),
+            ],
+        )
+        .unwrap();
+        assert_eq!(prog, "sh");
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[0], "-c");
+        assert!(args[1].contains("content"));
+        assert!(args[1].contains("/tmp/out.txt"));
+    }
+
+    #[test]
+    fn test_build_command_unknown_tool() {
+        let (prog, args) =
+            build_command("my_custom_tool", &[Value::String("arg1".to_string())]).unwrap();
+        assert_eq!(prog, "my_custom_tool");
+        assert_eq!(args, vec!["arg1"]);
+    }
+
+    #[test]
+    fn test_execute_nonexistent_command() {
+        let result = execute_tool_command(
+            "nonexistent_binary_xyz_12345",
+            &[],
+            Some(5.0),
+            DEFAULT_MAX_OUTPUT,
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Sandbox Error"));
+    }
 }

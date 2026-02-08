@@ -321,4 +321,31 @@ mod tests {
             panic!("Expected Main statement");
         }
     }
+
+    // Parser error tests
+    #[test]
+    fn test_parse_error_missing_var_name() {
+        let input = "let = 10";
+        let mut parser = Parser::new(input);
+        let result = parser.parse_program();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Expected variable name"));
+    }
+
+    #[test]
+    fn test_parse_error_missing_tool_name() {
+        let input = "tool () {}";
+        let mut parser = Parser::new(input);
+        let result = parser.parse_program();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Expected tool name"));
+    }
+
+    #[test]
+    fn test_parse_error_unclosed_brace() {
+        let input = "main { print 1";
+        let mut parser = Parser::new(input);
+        let result = parser.parse_program();
+        assert!(result.is_err());
+    }
 }

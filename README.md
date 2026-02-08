@@ -4,7 +4,7 @@
 
 While other frameworks rely on **persuasion** (prompt engineering: *"Please don't delete files"*), Aria-Lang relies on **physics** (runtime constraints: *"The agent literally cannot delete files without a Human-In-The-Loop gate"*).
 
-**Status:** v1.0.0 - *53 tests passing, zero warnings*
+**Status:** v1.0.0 - *83 tests passing, zero warnings*
 
 ## Why Aria-Lang?
 
@@ -139,17 +139,17 @@ core/src/
 
 | Module | Tests |
 |--------|-------|
-| Lexer | 2 |
-| Parser | 12 |
-| Evaluator | 5 |
+| Lexer | 5 |
+| Parser | 17 |
+| Evaluator | 15 |
 | Permissions | 4 |
 | Resource Limits | 4 |
-| Tool Executor | 6 |
-| Builtins (strings) | 9 |
-| Builtins (arrays) | 6 |
+| Tool Executor | 10 |
+| Builtins (strings) | 11 |
+| Builtins (arrays) | 8 |
 | Builtins (JSON) | 5 |
-| Builtins (files) | 2 |
-| **Total** | **53** (+ 2 integration test scripts) |
+| Builtins (files) | 4 |
+| **Total** | **83** (+ 2 integration test scripts) |
 
 ## Contribute
 

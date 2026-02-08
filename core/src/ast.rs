@@ -64,6 +64,7 @@ pub struct TaskDef {
     pub body: Vec<Statement>,
 }
 
+#[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Statement>,
 }

@@ -126,4 +126,33 @@ mod tests {
         assert_eq!(lex.next(), Some(Ok(Token::Arrow)));
         assert_eq!(lex.next(), None);
     }
+
+    #[test]
+    fn test_lexer_comments_skipped() {
+        let input = "let // this is a comment\n$x";
+        let mut lex = Token::lexer(input);
+        assert_eq!(lex.next(), Some(Ok(Token::Let)));
+        assert_eq!(lex.next(), Some(Ok(Token::VarIdent("$x".to_string()))));
+        assert_eq!(lex.next(), None);
+    }
+
+    #[test]
+    fn test_lexer_string_escapes() {
+        let input = r#""hello \"world\"""#;
+        let mut lex = Token::lexer(input);
+        if let Some(Ok(Token::String(s))) = lex.next() {
+            assert!(s.contains("\\\""));
+        } else {
+            panic!("Expected string token");
+        }
+    }
+
+    #[test]
+    fn test_lexer_dot_token() {
+        let input = "bot.cleanup";
+        let mut lex = Token::lexer(input);
+        assert_eq!(lex.next(), Some(Ok(Token::Ident("bot".to_string()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Dot)));
+        assert_eq!(lex.next(), Some(Ok(Token::Ident("cleanup".to_string()))));
+    }
 }

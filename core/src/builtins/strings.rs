@@ -216,4 +216,21 @@ mod tests {
         ]);
         assert_eq!(result, Ok(Value::String("hello world".to_string())));
     }
+
+    #[test]
+    fn test_str_len_wrong_args() {
+        let result = str_len(vec![
+            Value::String("a".to_string()),
+            Value::String("b".to_string()),
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("expects 1 argument"));
+    }
+
+    #[test]
+    fn test_str_len_wrong_type() {
+        let result = str_len(vec![Value::Number(42.0)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("string argument"));
+    }
 }
