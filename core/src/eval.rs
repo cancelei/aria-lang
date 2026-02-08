@@ -1,4 +1,5 @@
 use crate::ast::{Expr, Program, Statement, TaskDef};
+use crate::builtins::BuiltinRegistry;
 use crate::tool_executor;
 use std::collections::HashMap;
 
@@ -65,6 +66,7 @@ pub struct Evaluator {
     pub current_agent: Option<String>, // Day 4: Execution context tracking
     pub limits: ResourceLimits,        // Day 5: Configurable resource limits
     pub tracker: ResourceTracker,      // Day 5: Runtime resource usage tracking
+    pub builtins: BuiltinRegistry,     // Day 6: Standard library functions
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +88,7 @@ impl Evaluator {
             current_agent: None,                 // Day 4: Start in main context
             limits: ResourceLimits::default(),   // Day 5: Default resource limits
             tracker: ResourceTracker::default(), // Day 5: Fresh resource tracker
+            builtins: BuiltinRegistry::new(),    // Day 6: Initialize stdlib
         }
     }
 
@@ -341,7 +344,18 @@ impl Evaluator {
     }
 
     // Day 4: Function Calls with Permission Enforcement (THE PHYSICS!)
+    // Day 6: Now checks builtins first
     pub fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
+        // Day 6: Check if it's a builtin function first (no permission check needed)
+        if self.builtins.has(name) {
+            let mut evaluated_args = Vec::new();
+            for arg in args {
+                evaluated_args.push(self.eval_expr(arg)?);
+            }
+            println!("[Builtin Call] {} with {} args", name, evaluated_args.len());
+            return self.builtins.call(name, evaluated_args);
+        }
+
         // Check if tool is defined and get its metadata
         let (permission, timeout) = {
             let tool = self
