@@ -16,6 +16,7 @@ pub fn execute_tool_command(
     tool_name: &str,
     args: &[Value],
     timeout: Option<f64>,
+    max_output_bytes: u64,
 ) -> Result<Value, String> {
     let timeout = timeout.unwrap_or(30.0); // Default 30s timeout
 
@@ -83,6 +84,22 @@ pub fn execute_tool_command(
         Ok(output) => {
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                // Day 5: Enforce output size limit
+                if stdout.len() as u64 > max_output_bytes {
+                    let truncated = &stdout[..max_output_bytes as usize];
+                    println!(
+                        "[Sandbox] Output truncated: {} -> {} bytes (limit: {})",
+                        stdout.len(),
+                        max_output_bytes,
+                        max_output_bytes
+                    );
+                    return Ok(Value::String(format!(
+                        "{}... [TRUNCATED: {} bytes exceeded {} byte limit]",
+                        truncated,
+                        stdout.len(),
+                        max_output_bytes
+                    )));
+                }
                 println!(
                     "[Sandbox] Success in {:.2}s: {} bytes output",
                     elapsed.as_secs_f64(),
@@ -201,12 +218,15 @@ mod tests {
         assert_eq!(escape_shell_arg("it's"), "it'\\''s");
     }
 
+    const DEFAULT_MAX_OUTPUT: u64 = 1_048_576;
+
     #[test]
     fn test_real_tool_execution() {
         let result = execute_tool_command(
             "echo",
             &[Value::String("test_output".to_string())],
             Some(5.0),
+            DEFAULT_MAX_OUTPUT,
         );
         assert!(result.is_ok());
         if let Ok(Value::String(s)) = result {
@@ -216,10 +236,29 @@ mod tests {
 
     #[test]
     fn test_timeout_enforcement() {
-        let result =
-            execute_tool_command("shell", &[Value::String("sleep 10".to_string())], Some(1.0));
+        let result = execute_tool_command(
+            "shell",
+            &[Value::String("sleep 10".to_string())],
+            Some(1.0),
+            DEFAULT_MAX_OUTPUT,
+        );
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.contains("Timeout"));
+    }
+
+    #[test]
+    fn test_output_truncation() {
+        // Generate output larger than the limit
+        let result = execute_tool_command(
+            "shell",
+            &[Value::String("printf 'A%.0s' {1..100}".to_string())],
+            Some(5.0),
+            10, // Very small limit: 10 bytes
+        );
+        assert!(result.is_ok());
+        if let Ok(Value::String(s)) = result {
+            assert!(s.contains("TRUNCATED"));
+        }
     }
 }

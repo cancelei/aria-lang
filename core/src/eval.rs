@@ -2,6 +2,31 @@ use crate::ast::{Expr, Program, Statement, TaskDef};
 use crate::tool_executor;
 use std::collections::HashMap;
 
+// Day 5: Runtime resource limits - The Immune System
+#[derive(Debug, Clone)]
+pub struct ResourceLimits {
+    pub max_steps: u64,        // Max statement evaluations before abort
+    pub max_depth: u32,        // Max delegation/recursion depth
+    pub max_output_bytes: u64, // Max bytes from a single tool output
+}
+
+impl Default for ResourceLimits {
+    fn default() -> Self {
+        Self {
+            max_steps: 10_000,
+            max_depth: 32,
+            max_output_bytes: 1_048_576, // 1 MB
+        }
+    }
+}
+
+// Day 5: Tracks resource usage at runtime
+#[derive(Debug, Default)]
+pub struct ResourceTracker {
+    pub steps: u64,
+    pub depth: u32,
+}
+
 // Day 3: Tool definition storage
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -38,6 +63,8 @@ pub struct Evaluator {
     pub agent_defs: HashMap<String, AgentDef>,
     pub agents: HashMap<String, AgentInstance>,
     pub current_agent: Option<String>, // Day 4: Execution context tracking
+    pub limits: ResourceLimits,        // Day 5: Configurable resource limits
+    pub tracker: ResourceTracker,      // Day 5: Runtime resource usage tracking
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,7 +83,18 @@ impl Evaluator {
             tools: HashMap::new(),
             agent_defs: HashMap::new(),
             agents: HashMap::new(),
-            current_agent: None, // Day 4: Start in main context (unrestricted)
+            current_agent: None,                 // Day 4: Start in main context
+            limits: ResourceLimits::default(),   // Day 5: Default resource limits
+            tracker: ResourceTracker::default(), // Day 5: Fresh resource tracker
+        }
+    }
+
+    /// Create an evaluator with custom resource limits
+    #[cfg(test)]
+    pub fn with_limits(limits: ResourceLimits) -> Self {
+        Self {
+            limits,
+            ..Self::new()
         }
     }
 
@@ -70,6 +108,15 @@ impl Evaluator {
     }
 
     fn eval_statement(&mut self, stmt: Statement) -> Result<(), String> {
+        // Day 5: Step limit enforcement
+        self.tracker.steps += 1;
+        if self.tracker.steps > self.limits.max_steps {
+            return Err(format!(
+                "[Resource Limit] Exceeded max execution steps ({}) - possible infinite loop",
+                self.limits.max_steps
+            ));
+        }
+
         match stmt {
             Statement::Let { name, value } => {
                 let val = self.eval_expr(value)?;
@@ -250,6 +297,16 @@ impl Evaluator {
                     self.variables.insert(param.clone(), value.clone());
                 }
 
+                // Day 5: Depth limit enforcement
+                self.tracker.depth += 1;
+                if self.tracker.depth > self.limits.max_depth {
+                    self.tracker.depth -= 1;
+                    return Err(format!(
+                        "[Resource Limit] Exceeded max delegation depth ({}) - possible infinite delegation",
+                        self.limits.max_depth
+                    ));
+                }
+
                 // Day 4: Save current execution context
                 let previous_agent = self.current_agent.clone();
 
@@ -260,11 +317,15 @@ impl Evaluator {
                 // Execute task body with proper error handling
                 for stmt in task.body {
                     if let Err(e) = self.eval_statement(stmt) {
+                        self.tracker.depth -= 1; // Day 5: Restore depth on error
                         self.current_agent = previous_agent; // Restore on error
                         self.variables = old_variables;
                         return Err(e);
                     }
                 }
+
+                // Day 5: Restore depth on success
+                self.tracker.depth -= 1;
 
                 // Day 4: Restore previous execution context
                 self.current_agent = previous_agent;
@@ -332,7 +393,12 @@ impl Evaluator {
             timeout
         );
 
-        tool_executor::execute_tool_command(name, &evaluated_args, timeout)
+        tool_executor::execute_tool_command(
+            name,
+            &evaluated_args,
+            timeout,
+            self.limits.max_output_bytes,
+        )
     }
 
     // Day 3 - Step 10: Agent Spawning (Instantiation)

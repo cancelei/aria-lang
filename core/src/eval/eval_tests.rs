@@ -132,3 +132,84 @@ mod permission_tests {
         assert_eq!(evaluator.current_agent, Some("$agent1".to_string()));
     }
 }
+
+// Day 5: Resource Limit Tests
+#[cfg(test)]
+mod resource_limit_tests {
+    use crate::ast::{Expr, Program, Statement};
+    use crate::eval::{Evaluator, ResourceLimits};
+
+    #[test]
+    fn test_max_steps_exceeded() {
+        let limits = ResourceLimits {
+            max_steps: 5,
+            ..ResourceLimits::default()
+        };
+        let mut evaluator = Evaluator::with_limits(limits);
+
+        // Create a program with more statements than allowed
+        let program = Program {
+            statements: vec![
+                Statement::Print(Expr::String("1".to_string())),
+                Statement::Print(Expr::String("2".to_string())),
+                Statement::Print(Expr::String("3".to_string())),
+                Statement::Print(Expr::String("4".to_string())),
+                Statement::Print(Expr::String("5".to_string())),
+                // This 6th statement should trigger the limit
+                Statement::Print(Expr::String("6".to_string())),
+            ],
+        };
+
+        evaluator.eval_program(program);
+        // The evaluator should have stopped after max_steps
+        assert!(evaluator.tracker.steps >= 5);
+    }
+
+    #[test]
+    fn test_steps_within_limit() {
+        let limits = ResourceLimits {
+            max_steps: 100,
+            ..ResourceLimits::default()
+        };
+        let mut evaluator = Evaluator::with_limits(limits);
+
+        let program = Program {
+            statements: vec![
+                Statement::Let {
+                    name: "$a".to_string(),
+                    value: Expr::Number(1.0),
+                },
+                Statement::Let {
+                    name: "$b".to_string(),
+                    value: Expr::Number(2.0),
+                },
+            ],
+        };
+
+        evaluator.eval_program(program);
+        assert_eq!(evaluator.tracker.steps, 2);
+    }
+
+    #[test]
+    fn test_default_limits() {
+        let evaluator = Evaluator::new();
+        assert_eq!(evaluator.limits.max_steps, 10_000);
+        assert_eq!(evaluator.limits.max_depth, 32);
+        assert_eq!(evaluator.limits.max_output_bytes, 1_048_576);
+        assert_eq!(evaluator.tracker.steps, 0);
+        assert_eq!(evaluator.tracker.depth, 0);
+    }
+
+    #[test]
+    fn test_custom_limits() {
+        let limits = ResourceLimits {
+            max_steps: 500,
+            max_depth: 8,
+            max_output_bytes: 4096,
+        };
+        let evaluator = Evaluator::with_limits(limits);
+        assert_eq!(evaluator.limits.max_steps, 500);
+        assert_eq!(evaluator.limits.max_depth, 8);
+        assert_eq!(evaluator.limits.max_output_bytes, 4096);
+    }
+}
