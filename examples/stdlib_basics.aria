@@ -1,0 +1,44 @@
+// Day 6: Standard Library Demo
+// Demonstrates Aria's 22 builtin functions
+
+// String operations
+let $name = str_upper("aria-lang")
+print $name
+
+let $trimmed = str_trim("  hello world  ")
+print $trimmed
+
+let $length = str_len("hello")
+print $length
+
+let $replaced = str_replace("hello world", "world", "aria")
+print $replaced
+
+let $greeting = str_concat("Hello, ", "Aria!")
+print $greeting
+
+// Array operations
+let $arr = arr_from_split("red,green,blue", ",")
+print $arr
+
+let $size = arr_len($arr)
+print $size
+
+let $first = arr_get($arr, 0)
+print $first
+
+let $joined = arr_join($arr, " | ")
+print $joined
+
+let $bigger = arr_push($arr, "yellow")
+print $bigger
+
+// JSON operations
+let $json = json_stringify("hello")
+print $json
+
+let $obj = json_parse("{\"name\":\"aria\",\"version\":1}")
+print $obj
+
+let $val = json_get("{\"lang\":\"aria\"}", "lang")
+print $val

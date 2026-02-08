@@ -1,0 +1,55 @@
+// Aria-Lang v1.0 Full Feature Demo
+// Showcases all 7 days of implementation
+
+// === Day 1: The Brain - Think Blocks ===
+think { "Starting the Aria v1.0 demo..." }
+
+// === Day 2: The Conscience - Variables ===
+let $version = "1.0.0"
+print "Aria-Lang v1.0 Demo"
+
+// === Day 3: The Hands - Tools & Agents ===
+tool echo(text: string) {
+    permission: "io.write",
+    timeout: 5
+}
+
+tool shell(cmd: string) {
+    permission: "system.execute",
+    timeout: 10
+}
+
+agent Worker {
+    allow echo
+
+    task say_hello(name: string) {
+        think { "I should greet the user politely." }
+        let $msg = echo(name)
+        return $msg
+    }
+}
+
+// === Day 4: The Nervous System - Permission Enforcement ===
+// Worker can only use 'echo', not 'shell' - enforced at runtime
+
+// === Day 5: The Immune System - Resource Limits ===
+// Built-in protection: max 10,000 steps, max depth 32, max 1MB output
+
+// === Day 6: The Voice - Standard Library ===
+let $upper = str_upper("aria is alive")
+print $upper
+
+let $parts = arr_from_split("day0,day1,day2,day3,day4,day5,day6,day7", ",")
+let $count = arr_len($parts)
+print $count
+
+let $has_aria = str_contains("aria-lang v1.0", "aria")
+print $has_aria
+
+// === Day 7: The Organism - All Together ===
+main {
+    print "=== Spawning Agent ==="
+    let $worker = spawn Worker
+    delegate worker.say_hello("World")
+    print "=== Demo Complete ==="
+}

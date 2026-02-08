@@ -16,7 +16,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "--version" {
-        println!("Aria-Lang v0.1.0 (Contest Edition)");
+        println!("Aria-Lang v1.0.0 (Contest Edition)");
         return;
     }
 
@@ -44,7 +44,7 @@ fn run_source(source: &str) {
 }
 
 fn run_repl() {
-    println!("Aria-Lang v0.1.0 REPL");
+    println!("Aria-Lang v1.0.0 REPL");
     println!("Type 'exit' to quit.");
     let mut evaluator = Evaluator::new();
 

@@ -1,0 +1,53 @@
+// Day 4: Permission Enforcement Demo
+// Demonstrates how Aria's "physics-based" permission system works
+
+// Define tools with different permission categories
+tool echo(text: string) {
+    permission: "io.write",
+    timeout: 5
+}
+
+tool read_file(path: string) {
+    permission: "io.read",
+    timeout: 10
+}
+
+// Agent with restricted permissions - can ONLY use echo
+agent Greeter {
+    allow echo
+
+    task greet(name: string) {
+        print "Hello from Greeter agent!"
+        let $msg = echo(name)
+        return $msg
+    }
+}
+
+// Agent with file permissions
+agent Reader {
+    allow read_file
+    allow echo
+
+    task report(path: string) {
+        print "Reader checking file..."
+        let $content = read_file(path)
+        let $msg = echo("File read successfully")
+        return $msg
+    }
+}
+
+// Main block runs in unrestricted context
+main {
+    print "=== Permission Enforcement Demo ==="
+
+    let $greeter = spawn Greeter
+    let $reader = spawn Reader
+
+    // This works - Greeter is allowed to use echo
+    delegate greeter.greet("Aria")
+
+    // This works - Reader can use both read_file and echo
+    delegate reader.report("/etc/hostname")
+
+    print "=== Demo Complete ==="
+}
