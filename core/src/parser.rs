@@ -396,6 +396,11 @@ impl<'a> Parser<'a> {
                         if let Token::Ident(cap) = token {
                             capabilities.push(cap.clone());
                             self.advance();
+                        } else {
+                            return Err(format!(
+                                "Expected identifier in capabilities list, found {:?}",
+                                token
+                            ));
                         }
                         if let Some(Ok(Token::Comma)) = &self.current {
                             self.advance();
@@ -710,6 +715,11 @@ impl<'a> Parser<'a> {
                         if let Token::Ident(skill) = token {
                             skills.push(skill.clone());
                             self.advance();
+                        } else {
+                            return Err(format!(
+                                "Expected identifier in skills list, found {:?}",
+                                token
+                            ));
                         }
                         if let Some(Ok(Token::Comma)) = &self.current {
                             self.advance();
@@ -943,6 +953,11 @@ impl<'a> Parser<'a> {
                         if let Token::Ident(s) = token {
                             supports.push(s.clone());
                             self.advance();
+                        } else {
+                            return Err(format!(
+                                "Expected identifier in supports list, found {:?}",
+                                token
+                            ));
                         }
                         if let Some(Ok(Token::Comma)) = &self.current {
                             self.advance();
@@ -1037,6 +1052,11 @@ impl<'a> Parser<'a> {
                         if let Token::Ident(op) = token {
                             operations.push(op.clone());
                             self.advance();
+                        } else {
+                            return Err(format!(
+                                "Expected identifier in operations list, found {:?}",
+                                token
+                            ));
                         }
                         if let Some(Ok(Token::Comma)) = &self.current {
                             self.advance();

@@ -1318,6 +1318,40 @@ mod pipeline_runtime_tests {
             Value::String("from_stage_2".to_string())
         );
     }
+
+    #[test]
+    fn test_pipeline_input_stays_constant() {
+        let mut evaluator = Evaluator::new();
+
+        // Stage 1 produces a new value, Stage 2 reads $input (should be original)
+        let program = Program {
+            statements: vec![Statement::PipelineDef {
+                name: "InputTest".to_string(),
+                stages: vec![
+                    PipelineStage {
+                        agent_name: "Transform".to_string(),
+                        call: Expr::String("transformed".to_string()),
+                    },
+                    PipelineStage {
+                        agent_name: "CheckInput".to_string(),
+                        call: Expr::Var("$input".to_string()),
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_pipeline(
+            "InputTest",
+            Value::String("original".to_string()),
+        );
+        assert!(result.is_ok());
+        // $input should still be "original", not "transformed"
+        assert_eq!(
+            result.unwrap(),
+            Value::String("original".to_string())
+        );
+    }
 }
 
 // ========================================================================

@@ -905,6 +905,7 @@ impl Evaluator {
             pipeline.stages.len()
         ));
 
+        let original_input = input.clone();
         let mut current_value = input;
 
         for (i, (agent_name, call_expr)) in pipeline.stages.iter().enumerate() {
@@ -915,9 +916,9 @@ impl Evaluator {
                 agent_name
             ));
 
-            // Set $input and $prev for the stage
+            // $input = original pipeline input (constant), $prev = previous stage output
             self.variables
-                .insert("$input".to_string(), current_value.clone());
+                .insert("$input".to_string(), original_input.clone());
             self.variables
                 .insert("$prev".to_string(), current_value.clone());
 

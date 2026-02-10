@@ -9,15 +9,19 @@
 use crate::eval::Value;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
-/// Represents an active connection to an MCP server process
+/// Represents an active connection to an MCP server process.
+/// The BufReader is stored persistently to avoid losing buffered data
+/// when reading multi-line or partial responses.
 pub struct McpConnection {
     pub server_name: String,
     pub process: Child,
+    pub reader: BufReader<ChildStdout>,
     pub capabilities: Vec<String>,
     pub initialized: bool,
 }
@@ -42,7 +46,8 @@ impl JsonRpcRequest {
     }
 }
 
-/// Spawn an MCP server process and establish a stdio connection
+/// Spawn an MCP server process and establish a stdio connection.
+/// stderr is inherited (passed to parent) to avoid deadlocks from unconsumed piped stderr.
 pub fn connect_to_server(server_command: &str) -> Result<McpConnection, String> {
     // Parse the server command — support "command arg1 arg2" format
     let parts: Vec<&str> = server_command.split_whitespace().collect();
@@ -53,11 +58,11 @@ pub fn connect_to_server(server_command: &str) -> Result<McpConnection, String> 
     let program = parts[0];
     let args = &parts[1..];
 
-    let process = Command::new(program)
+    let mut process = Command::new(program)
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::inherit()) // Inherit stderr to prevent deadlocks
         .spawn()
         .map_err(|e| {
             format!(
@@ -66,9 +71,16 @@ pub fn connect_to_server(server_command: &str) -> Result<McpConnection, String> 
             )
         })?;
 
+    // Take stdout and wrap in persistent BufReader to avoid losing buffered data
+    let stdout = process.stdout.take().ok_or_else(|| {
+        "[MCP Error] Failed to capture server stdout".to_string()
+    })?;
+    let reader = BufReader::new(stdout);
+
     Ok(McpConnection {
         server_name: server_command.to_string(),
         process,
+        reader,
         capabilities: Vec::new(),
         initialized: false,
     })
@@ -181,6 +193,20 @@ pub fn call_tool(
 
     let response = send_request_with_timeout(conn, &request, timeout)?;
 
+    // Check for error flag FIRST — isError takes priority over content
+    if let Some(is_error) = response.get("isError") {
+        if is_error.as_bool() == Some(true) {
+            let error_text = response
+                .get("content")
+                .and_then(|c| c.as_array())
+                .and_then(|a| a.first())
+                .and_then(|i| i.get("text"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("Unknown MCP error");
+            return Err(format!("[MCP Tool Error] {}: {}", tool_name, error_text));
+        }
+    }
+
     // Parse MCP tool response content
     if let Some(content) = response.get("content") {
         if let Some(arr) = content.as_array() {
@@ -196,20 +222,6 @@ pub fn call_tool(
             return Ok(Value::Array(
                 results.into_iter().map(Value::String).collect(),
             ));
-        }
-    }
-
-    // Check for error
-    if let Some(is_error) = response.get("isError") {
-        if is_error.as_bool() == Some(true) {
-            let error_text = response
-                .get("content")
-                .and_then(|c| c.as_array())
-                .and_then(|a| a.first())
-                .and_then(|i| i.get("text"))
-                .and_then(|t| t.as_str())
-                .unwrap_or("Unknown MCP error");
-            return Err(format!("[MCP Tool Error] {}: {}", tool_name, error_text));
         }
     }
 
@@ -232,20 +244,24 @@ fn send_request(
     conn: &mut McpConnection,
     request: &JsonRpcRequest,
 ) -> Result<serde_json::Value, String> {
-    send_request_with_timeout(conn, request, None)
+    let message = request.to_json();
+    write_message(conn, &message)?;
+    read_response(conn, request.id, None)
 }
 
 fn send_request_with_timeout(
     conn: &mut McpConnection,
     request: &JsonRpcRequest,
-    _timeout: Option<f64>,
+    timeout: Option<f64>,
 ) -> Result<serde_json::Value, String> {
     let message = request.to_json();
     write_message(conn, &message)?;
-    read_response(conn, request.id)
+
+    let deadline = timeout.map(|secs| Instant::now() + Duration::from_secs_f64(secs));
+    read_response(conn, request.id, deadline)
 }
 
-/// Write a JSON-RPC message to the server's stdin using Content-Length framing
+/// Write a JSON-RPC message to the server's stdin using newline-delimited JSON
 fn write_message(conn: &mut McpConnection, message: &str) -> Result<(), String> {
     let stdin = conn
         .process
@@ -270,22 +286,30 @@ fn write_message(conn: &mut McpConnection, message: &str) -> Result<(), String> 
     Ok(())
 }
 
-/// Read a JSON-RPC response from the server's stdout
-fn read_response(conn: &mut McpConnection, expected_id: u64) -> Result<serde_json::Value, String> {
-    let stdout = conn
-        .process
-        .stdout
-        .as_mut()
-        .ok_or("[MCP Error] Server stdout not available")?;
-
-    let mut reader = BufReader::new(stdout);
+/// Read a JSON-RPC response from the server's stdout using the persistent BufReader.
+/// Optionally enforces a deadline for timeout.
+fn read_response(
+    conn: &mut McpConnection,
+    expected_id: u64,
+    deadline: Option<Instant>,
+) -> Result<serde_json::Value, String> {
     let mut line = String::new();
 
     // Read lines until we get a JSON-RPC response with matching id
     // Skip notification messages (no id field)
     loop {
+        // Check timeout deadline before each read
+        if let Some(dl) = deadline {
+            if Instant::now() >= dl {
+                return Err(format!(
+                    "[MCP Error] Timeout waiting for response from server '{}'",
+                    conn.server_name
+                ));
+            }
+        }
+
         line.clear();
-        let bytes_read = reader.read_line(&mut line).map_err(|e| {
+        let bytes_read = conn.reader.read_line(&mut line).map_err(|e| {
             format!(
                 "[MCP Error] Failed to read from server '{}': {}",
                 conn.server_name, e
