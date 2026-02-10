@@ -2,6 +2,7 @@ mod ast;
 mod builtins;
 mod eval;
 mod lexer;
+mod mcp_client;
 mod parser;
 mod tool_executor;
 

@@ -130,6 +130,11 @@ fn value_to_string(v: &Value) -> String {
         Value::Number(n) => n.to_string(),
         Value::Null => String::new(),
         Value::Agent(a) => a.clone(),
+        Value::Array(items) => {
+            let parts: Vec<String> = items.iter().map(value_to_string).collect();
+            parts.join(", ")
+        }
+        Value::Bool(b) => b.to_string(),
     }
 }
 

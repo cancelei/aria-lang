@@ -70,6 +70,12 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, String> {
             .ok_or("Invalid number for JSON".to_string()),
         Value::Null => Ok(serde_json::Value::Null),
         Value::Agent(a) => Ok(serde_json::Value::String(format!("Agent({})", a))),
+        Value::Array(items) => {
+            let json_items: Result<Vec<serde_json::Value>, String> =
+                items.iter().map(value_to_json).collect();
+            Ok(serde_json::Value::Array(json_items?))
+        }
+        Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
     }
 }
 

@@ -1499,4 +1499,187 @@ todo!, unimplemented!, unreachable!
 
 ---
 
+## 15. MCP Integration (M21)
+
+### 15.1 MCP Tool Definitions
+
+```ebnf
+mcp_tool_def    = 'tool' identifier 'from' 'mcp' '(' string_literal ')' '{' mcp_tool_body '}' ;
+mcp_tool_body   = { mcp_tool_field } ;
+mcp_tool_field  = 'permission' ':' string_literal [ ',' ]
+                | 'capabilities' ':' '[' identifier_list ']' [ ',' ]
+                | 'timeout' ':' number_literal [ ',' ] ;
+identifier_list = identifier { ',' identifier } ;
+```
+
+**Example:**
+```aria
+tool code_search from mcp("github-server") {
+    permission: "mcp.connect",
+    capabilities: [search_code, search_issues],
+    timeout: 15
+}
+```
+
+---
+
+## 16. Multi-Agent Orchestration (M22)
+
+### 16.1 Pipeline (Sequential)
+
+```ebnf
+pipeline_def    = 'pipeline' identifier '{' { stage_def } '}' ;
+stage_def       = 'stage' identifier '->' expression ;
+```
+
+**Example:**
+```aria
+pipeline ReviewPipeline {
+    stage Analyst -> analyze($input)
+    stage Reviewer -> review($prev)
+    stage Summarizer -> summarize($prev)
+}
+```
+
+### 16.2 Concurrent (Fan-Out/Merge)
+
+```ebnf
+concurrent_def  = 'concurrent' identifier '{' { concurrent_branch } [ merge_clause ] '}' ;
+concurrent_branch = 'agent' identifier '->' expression ;
+merge_clause    = 'merge' expression ;
+```
+
+**Example:**
+```aria
+concurrent ResearchTask {
+    agent WebSearcher -> search_web($query)
+    agent CodeSearcher -> search_codebase($query)
+    merge combine_results($results)
+}
+```
+
+### 16.3 Handoff (Routing)
+
+```ebnf
+handoff_def     = 'handoff' identifier '{' agent_classifier { route_def } '}' ;
+agent_classifier = 'agent' identifier '->' expression ;
+route_def       = 'route' route_pattern '=>' identifier ;
+route_pattern   = string_literal | '_' ;
+```
+
+**Example:**
+```aria
+handoff SupportFlow {
+    agent Triage -> classify($input)
+    route "billing" => BillingAgent
+    route "technical" => TechAgent
+    route _ => HumanEscalation
+}
+```
+
+---
+
+## 17. A2A Protocol (M23)
+
+### 17.1 Agent Card Definitions
+
+```ebnf
+a2a_def         = 'a2a' identifier '{' { a2a_field } '}' ;
+a2a_field       = 'discovery' ':' string_literal [ ',' ]
+                | 'skills' ':' '[' identifier_list ']' [ ',' ]
+                | 'endpoint' ':' string_literal [ ',' ] ;
+```
+
+**Example:**
+```aria
+a2a ResearchCard {
+    discovery: "/.well-known/agent.json"
+    skills: [search, analyze, summarize]
+    endpoint: "https://agents.aria.dev/research"
+}
+```
+
+---
+
+## 18. Workflow State Machines (M24)
+
+### 18.1 Workflow Definitions
+
+```ebnf
+workflow_def    = 'workflow' identifier '{' { state_def } '}' ;
+state_def       = 'state' identifier '{' { state_body_item } '}' ;
+state_body_item = transition_def | requires_clause | ensures_clause | statement ;
+transition_def  = 'on' identifier '->' identifier ;
+requires_clause = 'requires' expression ;
+ensures_clause  = 'ensures' expression ;
+```
+
+**Example:**
+```aria
+workflow OrderProcessing {
+    state pending {
+        on receive_order -> validating
+    }
+    state validating {
+        requires $order_valid
+        on valid -> processing
+        on invalid -> rejected
+    }
+    state processing {
+        on complete -> shipped
+    }
+    state shipped {
+        ensures $tracking_exists
+    }
+    state rejected {
+    }
+}
+```
+
+---
+
+## 19. Model Declarations (M25)
+
+### 19.1 Model Definitions
+
+```ebnf
+model_def       = 'model' identifier '{' { model_field } '}' ;
+model_field     = 'capability' ':' string_literal [ ',' ]
+                | 'provider' ':' string_literal [ ',' ]
+                | 'supports' ':' '[' identifier_list ']' [ ',' ] ;
+```
+
+**Example:**
+```aria
+model assistant {
+    capability: "chat_completion"
+    provider: "openai"
+    supports: [tool_calling, structured_output, vision]
+}
+```
+
+---
+
+## 20. Agent Memory (M26)
+
+### 20.1 Memory Definitions
+
+```ebnf
+memory_def      = 'memory' identifier '{' { memory_field } '}' ;
+memory_field    = 'store' ':' string_literal [ ',' ]
+                | 'embedding' ':' string_literal [ ',' ]
+                | 'operations' ':' '[' identifier_list ']' [ ',' ] ;
+```
+
+**Example:**
+```aria
+memory ProjectKnowledge {
+    store: "chromadb://localhost:8000/project"
+    embedding: "text_embedder"
+    operations: [remember, recall, forget]
+}
+```
+
+---
+
 **End of Grammar Specification**
