@@ -1,5 +1,6 @@
 use crate::ast::{Expr, Program, Statement, TaskDef};
 use crate::builtins::BuiltinRegistry;
+use crate::mcp_client;
 use crate::tool_executor;
 use std::collections::HashMap;
 use std::fmt;
@@ -771,6 +772,11 @@ impl Evaluator {
             timeout
         ));
 
+        // M21: Route MCP tools through MCP client
+        if self.is_mcp_tool(name) {
+            return self.execute_mcp_tool(name, &evaluated_args);
+        }
+
         tool_executor::execute_tool_command(
             name,
             &evaluated_args,
@@ -848,6 +854,402 @@ impl Evaluator {
             self.tools.get(&name).unwrap().params.len()
         ));
         Ok(())
+    }
+
+    // ====================================================================
+    // M21 Runtime: MCP Tool Call Execution
+    // Routes tool calls through MCP client when tool is an MCP tool
+    // ====================================================================
+
+    fn is_mcp_tool(&self, name: &str) -> bool {
+        self.mcp_tools.contains_key(name)
+    }
+
+    fn execute_mcp_tool(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
+        let mcp_tool = self
+            .mcp_tools
+            .get(name)
+            .ok_or(format!("[MCP Error] Tool '{}' not found in MCP registry", name))?
+            .clone();
+
+        self.emit(format!(
+            "[MCP Call] {} on server '{}' with {} args",
+            name,
+            mcp_tool.server,
+            args.len()
+        ));
+
+        // Use simulation mode — actual MCP server connection would use mcp_client::connect_to_server
+        let result =
+            mcp_client::execute_mcp_simulated(&mcp_tool.server, name, args, mcp_tool.timeout)?;
+
+        self.emit(format!("[MCP Result] {} -> {}", name, result));
+        Ok(result)
+    }
+
+    // ====================================================================
+    // M22 Runtime: Pipeline Execution
+    // Executes stages sequentially, threading output through as $prev
+    // ====================================================================
+
+    pub fn run_pipeline(&mut self, pipeline_name: &str, input: Value) -> Result<Value, String> {
+        let pipeline = self
+            .pipelines
+            .get(pipeline_name)
+            .ok_or(format!("Pipeline '{}' not found", pipeline_name))?
+            .clone();
+
+        self.emit(format!(
+            "[Pipeline Run] {} with {} stages",
+            pipeline_name,
+            pipeline.stages.len()
+        ));
+
+        let mut current_value = input;
+
+        for (i, (agent_name, call_expr)) in pipeline.stages.iter().enumerate() {
+            self.emit(format!(
+                "[Pipeline Stage {}/{}] {} processing...",
+                i + 1,
+                pipeline.stages.len(),
+                agent_name
+            ));
+
+            // Set $input and $prev for the stage
+            self.variables
+                .insert("$input".to_string(), current_value.clone());
+            self.variables
+                .insert("$prev".to_string(), current_value.clone());
+
+            // Evaluate the stage's call expression
+            current_value = self.eval_expr(call_expr.clone())?;
+
+            self.emit(format!(
+                "[Pipeline Stage {}/{}] {} -> {}",
+                i + 1,
+                pipeline.stages.len(),
+                agent_name,
+                current_value
+            ));
+        }
+
+        self.emit(format!(
+            "[Pipeline Complete] {} -> {}",
+            pipeline_name, current_value
+        ));
+        Ok(current_value)
+    }
+
+    // ====================================================================
+    // M22 Runtime: Concurrent Execution
+    // Executes branches (simulated parallel), collects results, optionally merges
+    // ====================================================================
+
+    pub fn run_concurrent(&mut self, concurrent_name: &str, input: Value) -> Result<Value, String> {
+        let concurrent = self
+            .concurrent_defs
+            .get(concurrent_name)
+            .ok_or(format!("Concurrent '{}' not found", concurrent_name))?
+            .clone();
+
+        self.emit(format!(
+            "[Concurrent Run] {} with {} branches",
+            concurrent_name,
+            concurrent.branches.len()
+        ));
+
+        // Set $query / $input for branches
+        self.variables
+            .insert("$query".to_string(), input.clone());
+        self.variables
+            .insert("$input".to_string(), input.clone());
+
+        // Execute each branch and collect results
+        let mut results = Vec::new();
+        for (agent_name, call_expr) in &concurrent.branches {
+            self.emit(format!("[Concurrent Branch] {} executing...", agent_name));
+            let result = self.eval_expr(call_expr.clone())?;
+            self.emit(format!("[Concurrent Branch] {} -> {}", agent_name, result));
+            results.push(result);
+        }
+
+        let collected = Value::Array(results);
+
+        // Apply merge function if specified
+        let final_result = if let Some(merge_expr) = &concurrent.merge_fn {
+            self.variables
+                .insert("$results".to_string(), collected.clone());
+            self.eval_expr(merge_expr.clone())?
+        } else {
+            collected
+        };
+
+        self.emit(format!(
+            "[Concurrent Complete] {} -> {}",
+            concurrent_name, final_result
+        ));
+        Ok(final_result)
+    }
+
+    // ====================================================================
+    // M22 Runtime: Handoff Execution
+    // Runs classifier agent, routes result to target agent
+    // ====================================================================
+
+    pub fn run_handoff(&mut self, handoff_name: &str, input: Value) -> Result<Value, String> {
+        let handoff = self
+            .handoffs
+            .get(handoff_name)
+            .ok_or(format!("Handoff '{}' not found", handoff_name))?
+            .clone();
+
+        self.emit(format!(
+            "[Handoff Run] {} with classifier '{}'",
+            handoff_name, handoff.agent_name
+        ));
+
+        // Set $input for classifier
+        self.variables
+            .insert("$input".to_string(), input.clone());
+
+        // Run the classifier agent call
+        let classification = self.eval_expr(handoff.agent_call.clone())?;
+        let class_str = format!("{}", classification);
+        self.emit(format!(
+            "[Handoff Classified] {} -> '{}'",
+            handoff.agent_name, class_str
+        ));
+
+        // Find matching route
+        let mut target_agent = None;
+        for (pattern, agent) in &handoff.routes {
+            if pattern == &class_str || pattern == "_" {
+                target_agent = Some(agent.clone());
+                break;
+            }
+        }
+
+        let target = target_agent.ok_or(format!(
+            "[Handoff Error] No route matches classification '{}' in handoff '{}'",
+            class_str, handoff_name
+        ))?;
+
+        self.emit(format!(
+            "[Handoff Routed] '{}' -> agent '{}'",
+            class_str, target
+        ));
+
+        Ok(Value::String(format!(
+            "[Handoff:{} -> {}]",
+            handoff_name, target
+        )))
+    }
+
+    // ====================================================================
+    // M24 Runtime: Workflow State Transitions
+    // ====================================================================
+
+    pub fn transition_workflow(
+        &mut self,
+        workflow_name: &str,
+        event: &str,
+    ) -> Result<Value, String> {
+        // Extract all needed data upfront to avoid borrow issues
+        let (current, requires_expr, transitions, all_states_ensures) = {
+            let wf = self
+                .workflows
+                .get(workflow_name)
+                .ok_or(format!("Workflow '{}' not found", workflow_name))?;
+
+            let current = wf.current_state.clone();
+            let state = wf
+                .states
+                .get(&current)
+                .ok_or(format!(
+                    "[Workflow Error] State '{}' not found in workflow '{}'",
+                    current, workflow_name
+                ))?;
+
+            let requires_expr = state.requires.clone();
+            let transitions = state.transitions.clone();
+            // Collect ensures for all states we might transition to
+            let ensures: HashMap<String, Option<Expr>> = wf
+                .states
+                .iter()
+                .map(|(k, v)| (k.clone(), v.ensures.clone()))
+                .collect();
+
+            (current, requires_expr, transitions, ensures)
+        };
+
+        // Check requires contract if present
+        if let Some(req_expr) = requires_expr {
+            let req_val = self.eval_expr(req_expr)?;
+            match &req_val {
+                Value::Bool(false) => {
+                    return Err(format!(
+                        "[Workflow Contract] requires failed for state '{}' in '{}'",
+                        current, workflow_name
+                    ));
+                }
+                Value::Null => {
+                    return Err(format!(
+                        "[Workflow Contract] requires evaluated to null for state '{}' in '{}'",
+                        current, workflow_name
+                    ));
+                }
+                _ => {} // Any non-false, non-null value passes
+            }
+        }
+
+        // Find transition matching the event
+        let target_state = transitions
+            .iter()
+            .find(|(e, _)| e == event)
+            .map(|(_, t)| t.clone())
+            .ok_or(format!(
+                "[Workflow Error] No transition for event '{}' from state '{}' in '{}'",
+                event, current, workflow_name
+            ))?;
+
+        self.emit(format!(
+            "[Workflow Transition] {}: '{}' --({})-> '{}'",
+            workflow_name, current, event, target_state
+        ));
+
+        // Check ensures contract on target state if present
+        if let Some(Some(ensures_expr)) = all_states_ensures.get(&target_state) {
+            let ens_val = self.eval_expr(ensures_expr.clone())?;
+            if let Value::Bool(false) = &ens_val {
+                return Err(format!(
+                    "[Workflow Contract] ensures failed for state '{}' in '{}'",
+                    target_state, workflow_name
+                ));
+            }
+        }
+
+        // Apply transition
+        let wf_mut = self.workflows.get_mut(workflow_name).unwrap();
+        wf_mut.current_state = target_state.clone();
+
+        Ok(Value::String(target_state))
+    }
+
+    pub fn get_workflow_state(&self, workflow_name: &str) -> Result<Value, String> {
+        let wf = self
+            .workflows
+            .get(workflow_name)
+            .ok_or(format!("Workflow '{}' not found", workflow_name))?;
+        Ok(Value::String(wf.current_state.clone()))
+    }
+
+    // ====================================================================
+    // M26 Runtime: Memory Operations
+    // ====================================================================
+
+    pub fn memory_remember(
+        &mut self,
+        memory_name: &str,
+        key: String,
+        value: Value,
+    ) -> Result<Value, String> {
+        let mem = self
+            .memories
+            .get_mut(memory_name)
+            .ok_or(format!("Memory '{}' not found", memory_name))?;
+
+        // Check if 'remember' is an allowed operation
+        if !mem.operations.is_empty() && !mem.operations.contains(&"remember".to_string()) {
+            return Err(format!(
+                "[Memory Error] Operation 'remember' not permitted on memory '{}'",
+                memory_name
+            ));
+        }
+
+        mem.entries.push((key.clone(), value.clone()));
+        self.emit(format!(
+            "[Memory Remember] {}['{}'] = {}",
+            memory_name, key, value
+        ));
+        Ok(Value::Bool(true))
+    }
+
+    pub fn memory_recall(
+        &mut self,
+        memory_name: &str,
+        query: &str,
+        top_k: usize,
+    ) -> Result<Value, String> {
+        let mem = self
+            .memories
+            .get(memory_name)
+            .ok_or(format!("Memory '{}' not found", memory_name))?;
+
+        if !mem.operations.is_empty() && !mem.operations.contains(&"recall".to_string()) {
+            return Err(format!(
+                "[Memory Error] Operation 'recall' not permitted on memory '{}'",
+                memory_name
+            ));
+        }
+
+        // Simple keyword-match recall (real implementation would use embeddings/vector search)
+        let query_lower = query.to_lowercase();
+        let mut matches: Vec<Value> = mem
+            .entries
+            .iter()
+            .filter(|(k, _)| k.to_lowercase().contains(&query_lower))
+            .take(top_k)
+            .map(|(k, v)| {
+                Value::String(format!("{}: {}", k, v))
+            })
+            .collect();
+
+        // If no keyword matches, return the most recent entries
+        if matches.is_empty() {
+            matches = mem
+                .entries
+                .iter()
+                .rev()
+                .take(top_k)
+                .map(|(k, v)| Value::String(format!("{}: {}", k, v)))
+                .collect();
+        }
+
+        self.emit(format!(
+            "[Memory Recall] {} query='{}' -> {} results",
+            memory_name,
+            query,
+            matches.len()
+        ));
+        Ok(Value::Array(matches))
+    }
+
+    pub fn memory_forget(
+        &mut self,
+        memory_name: &str,
+        key: &str,
+    ) -> Result<Value, String> {
+        let mem = self
+            .memories
+            .get_mut(memory_name)
+            .ok_or(format!("Memory '{}' not found", memory_name))?;
+
+        if !mem.operations.is_empty() && !mem.operations.contains(&"forget".to_string()) {
+            return Err(format!(
+                "[Memory Error] Operation 'forget' not permitted on memory '{}'",
+                memory_name
+            ));
+        }
+
+        let before = mem.entries.len();
+        mem.entries.retain(|(k, _)| k != key);
+        let removed = before - mem.entries.len();
+
+        self.emit(format!(
+            "[Memory Forget] {} key='{}' ({} entries removed)",
+            memory_name, key, removed
+        ));
+        Ok(Value::Number(removed as f64))
     }
 
     fn eval_expr(&mut self, expr: Expr) -> Result<Value, String> {

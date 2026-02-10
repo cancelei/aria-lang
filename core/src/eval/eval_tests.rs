@@ -1107,3 +1107,1195 @@ mod resource_limit_tests {
         assert_eq!(evaluator.limits.max_output_bytes, 4096);
     }
 }
+
+// ========================================================================
+// M21 Runtime: MCP Tool Execution Tests
+// ========================================================================
+#[cfg(test)]
+mod mcp_runtime_tests {
+    use crate::ast::{Expr, Program, Statement};
+    use crate::eval::{Evaluator, Value};
+
+    #[test]
+    fn test_mcp_tool_call_through_eval_call() {
+        let mut evaluator = Evaluator::new();
+
+        // Register an MCP tool
+        let program = Program {
+            statements: vec![Statement::McpToolDef {
+                name: "search_code".to_string(),
+                server: "github-server".to_string(),
+                permission: Some("mcp.github".to_string()),
+                capabilities: vec!["search".to_string()],
+                timeout: Some(15.0),
+            }],
+        };
+        evaluator.eval_program(program);
+
+        // Call the MCP tool through eval_call (main context = unrestricted)
+        let result = evaluator.eval_call(
+            "search_code",
+            vec![Expr::String("rust async".to_string())],
+        );
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        if let Value::String(s) = &val {
+            assert!(s.contains("[MCP:github-server]"));
+            assert!(s.contains("search_code"));
+            assert!(s.contains("rust async"));
+        } else {
+            panic!("Expected String value from MCP tool, got: {:?}", val);
+        }
+
+        // Verify output trace shows MCP routing
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[MCP Call]"));
+        assert!(output.contains("[MCP Result]"));
+    }
+
+    #[test]
+    fn test_mcp_tool_is_detected() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::McpToolDef {
+                name: "db_query".to_string(),
+                server: "postgres-server".to_string(),
+                permission: None,
+                capabilities: vec!["query".to_string()],
+                timeout: None,
+            }],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.mcp_tools.contains_key("db_query"));
+        // Also verify it's registered as a regular tool for permission checks
+        assert!(evaluator.tools.contains_key("db_query"));
+    }
+
+    #[test]
+    fn test_mcp_tool_with_agent_permission() {
+        let mut evaluator = Evaluator::new();
+
+        // Register MCP tool and agent that's allowed to use it
+        let program = Program {
+            statements: vec![
+                Statement::McpToolDef {
+                    name: "code_search".to_string(),
+                    server: "github-mcp".to_string(),
+                    permission: Some("mcp.github".to_string()),
+                    capabilities: vec!["search".to_string()],
+                    timeout: Some(10.0),
+                },
+                Statement::AgentDef {
+                    name: "SearchAgent".to_string(),
+                    allow_list: vec!["code_search".to_string()],
+                    tasks: vec![],
+                    body: vec![],
+                },
+            ],
+        };
+        evaluator.eval_program(program);
+
+        // Spawn and set context
+        evaluator
+            .eval_spawn("$searcher".to_string(), "SearchAgent".to_string())
+            .unwrap();
+        evaluator.current_agent = Some("$searcher".to_string());
+
+        // Call should succeed since agent has permission
+        let result = evaluator.eval_call(
+            "code_search",
+            vec![Expr::String("query".to_string())],
+        );
+        assert!(result.is_ok());
+        if let Value::String(s) = result.unwrap() {
+            assert!(s.contains("[MCP:github-mcp]"));
+        } else {
+            panic!("Expected String from MCP call");
+        }
+    }
+}
+
+// ========================================================================
+// M22 Runtime: Pipeline Execution Tests
+// ========================================================================
+#[cfg(test)]
+mod pipeline_runtime_tests {
+    use crate::ast::{Expr, PipelineStage, Program, Statement};
+    use crate::eval::{Evaluator, Value};
+
+    fn setup_pipeline_evaluator() -> Evaluator {
+        let mut evaluator = Evaluator::new();
+
+        // Register a pipeline with stages that use $prev/$input variables
+        let program = Program {
+            statements: vec![Statement::PipelineDef {
+                name: "TestPipeline".to_string(),
+                stages: vec![
+                    PipelineStage {
+                        agent_name: "Stage1".to_string(),
+                        call: Expr::Var("$input".to_string()),
+                    },
+                    PipelineStage {
+                        agent_name: "Stage2".to_string(),
+                        call: Expr::Var("$prev".to_string()),
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+        evaluator
+    }
+
+    #[test]
+    fn test_pipeline_run_basic() {
+        let mut evaluator = setup_pipeline_evaluator();
+
+        let result = evaluator.run_pipeline(
+            "TestPipeline",
+            Value::String("hello".to_string()),
+        );
+        assert!(result.is_ok());
+        // Each stage just passes through via $input/$prev
+        assert_eq!(result.unwrap(), Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_pipeline_run_traces_output() {
+        let mut evaluator = setup_pipeline_evaluator();
+
+        evaluator
+            .run_pipeline("TestPipeline", Value::String("data".to_string()))
+            .unwrap();
+
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[Pipeline Run] TestPipeline with 2 stages"));
+        assert!(output.contains("[Pipeline Stage 1/2] Stage1"));
+        assert!(output.contains("[Pipeline Stage 2/2] Stage2"));
+        assert!(output.contains("[Pipeline Complete] TestPipeline"));
+    }
+
+    #[test]
+    fn test_pipeline_not_found() {
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.run_pipeline("NonExistent", Value::Null);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_pipeline_threads_values() {
+        let mut evaluator = Evaluator::new();
+
+        // Pipeline with 3 stages, each stage reads $prev
+        let program = Program {
+            statements: vec![Statement::PipelineDef {
+                name: "ThreeStage".to_string(),
+                stages: vec![
+                    PipelineStage {
+                        agent_name: "A".to_string(),
+                        call: Expr::String("from_stage_1".to_string()),
+                    },
+                    PipelineStage {
+                        agent_name: "B".to_string(),
+                        call: Expr::String("from_stage_2".to_string()),
+                    },
+                    PipelineStage {
+                        agent_name: "C".to_string(),
+                        call: Expr::Var("$prev".to_string()),
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_pipeline("ThreeStage", Value::String("start".to_string()));
+        assert!(result.is_ok());
+        // Stage 3 reads $prev which is "from_stage_2"
+        assert_eq!(
+            result.unwrap(),
+            Value::String("from_stage_2".to_string())
+        );
+    }
+}
+
+// ========================================================================
+// M22 Runtime: Concurrent Execution Tests
+// ========================================================================
+#[cfg(test)]
+mod concurrent_runtime_tests {
+    use crate::ast::{ConcurrentBranch, Expr, Program, Statement};
+    use crate::eval::{Evaluator, Value};
+
+    #[test]
+    fn test_concurrent_run_basic() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::ConcurrentDef {
+                name: "ParallelSearch".to_string(),
+                branches: vec![
+                    ConcurrentBranch {
+                        agent_name: "Searcher1".to_string(),
+                        call: Expr::String("result_a".to_string()),
+                    },
+                    ConcurrentBranch {
+                        agent_name: "Searcher2".to_string(),
+                        call: Expr::String("result_b".to_string()),
+                    },
+                ],
+                merge_fn: None,
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_concurrent(
+            "ParallelSearch",
+            Value::String("query".to_string()),
+        );
+        assert!(result.is_ok());
+
+        // Without merge_fn, result is an array of branch results
+        let val = result.unwrap();
+        if let Value::Array(items) = &val {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], Value::String("result_a".to_string()));
+            assert_eq!(items[1], Value::String("result_b".to_string()));
+        } else {
+            panic!("Expected Array value, got: {:?}", val);
+        }
+    }
+
+    #[test]
+    fn test_concurrent_with_merge() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::ConcurrentDef {
+                name: "MergedSearch".to_string(),
+                branches: vec![
+                    ConcurrentBranch {
+                        agent_name: "A".to_string(),
+                        call: Expr::String("alpha".to_string()),
+                    },
+                    ConcurrentBranch {
+                        agent_name: "B".to_string(),
+                        call: Expr::String("beta".to_string()),
+                    },
+                ],
+                // merge_fn reads $results (which is the collected array)
+                merge_fn: Some(Expr::Var("$results".to_string())),
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_concurrent(
+            "MergedSearch",
+            Value::String("q".to_string()),
+        );
+        assert!(result.is_ok());
+        // Merge fn just returns $results as-is
+        if let Value::Array(items) = result.unwrap() {
+            assert_eq!(items.len(), 2);
+        } else {
+            panic!("Expected Array from merge function");
+        }
+    }
+
+    #[test]
+    fn test_concurrent_traces_output() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::ConcurrentDef {
+                name: "Traced".to_string(),
+                branches: vec![ConcurrentBranch {
+                    agent_name: "Worker".to_string(),
+                    call: Expr::String("done".to_string()),
+                }],
+                merge_fn: None,
+            }],
+        };
+        evaluator.eval_program(program);
+
+        evaluator
+            .run_concurrent("Traced", Value::Null)
+            .unwrap();
+
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[Concurrent Run] Traced with 1 branches"));
+        assert!(output.contains("[Concurrent Branch] Worker executing"));
+        assert!(output.contains("[Concurrent Complete] Traced"));
+    }
+
+    #[test]
+    fn test_concurrent_not_found() {
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.run_concurrent("Missing", Value::Null);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_concurrent_sets_query_var() {
+        let mut evaluator = Evaluator::new();
+
+        // Branch reads $query that's set by run_concurrent
+        let program = Program {
+            statements: vec![Statement::ConcurrentDef {
+                name: "QueryTest".to_string(),
+                branches: vec![ConcurrentBranch {
+                    agent_name: "Agent".to_string(),
+                    call: Expr::Var("$query".to_string()),
+                }],
+                merge_fn: None,
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_concurrent(
+            "QueryTest",
+            Value::String("my_query".to_string()),
+        );
+        assert!(result.is_ok());
+        if let Value::Array(items) = result.unwrap() {
+            assert_eq!(items[0], Value::String("my_query".to_string()));
+        } else {
+            panic!("Expected Array");
+        }
+    }
+}
+
+// ========================================================================
+// M22 Runtime: Handoff Execution Tests
+// ========================================================================
+#[cfg(test)]
+mod handoff_runtime_tests {
+    use crate::ast::{Expr, HandoffRoute, Program, Statement};
+    use crate::eval::{Evaluator, Value};
+
+    fn setup_handoff_evaluator() -> Evaluator {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![Statement::HandoffDef {
+                name: "Router".to_string(),
+                agent_name: "Classifier".to_string(),
+                agent_call: Expr::Var("$input".to_string()),
+                routes: vec![
+                    HandoffRoute {
+                        pattern: "billing".to_string(),
+                        target_agent: "BillingAgent".to_string(),
+                    },
+                    HandoffRoute {
+                        pattern: "technical".to_string(),
+                        target_agent: "TechAgent".to_string(),
+                    },
+                    HandoffRoute {
+                        pattern: "_".to_string(),
+                        target_agent: "DefaultAgent".to_string(),
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+        evaluator
+    }
+
+    #[test]
+    fn test_handoff_exact_match() {
+        let mut evaluator = setup_handoff_evaluator();
+
+        let result = evaluator.run_handoff(
+            "Router",
+            Value::String("billing".to_string()),
+        );
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        if let Value::String(s) = &val {
+            assert!(s.contains("BillingAgent"));
+        } else {
+            panic!("Expected String, got: {:?}", val);
+        }
+    }
+
+    #[test]
+    fn test_handoff_second_route() {
+        let mut evaluator = setup_handoff_evaluator();
+
+        let result = evaluator.run_handoff(
+            "Router",
+            Value::String("technical".to_string()),
+        );
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        if let Value::String(s) = &val {
+            assert!(s.contains("TechAgent"));
+        } else {
+            panic!("Expected String");
+        }
+    }
+
+    #[test]
+    fn test_handoff_wildcard_route() {
+        let mut evaluator = setup_handoff_evaluator();
+
+        let result = evaluator.run_handoff(
+            "Router",
+            Value::String("unknown_category".to_string()),
+        );
+        assert!(result.is_ok());
+        let val = result.unwrap();
+        if let Value::String(s) = &val {
+            assert!(s.contains("DefaultAgent"));
+        } else {
+            panic!("Expected String");
+        }
+    }
+
+    #[test]
+    fn test_handoff_no_matching_route() {
+        let mut evaluator = Evaluator::new();
+
+        // Handoff without wildcard
+        let program = Program {
+            statements: vec![Statement::HandoffDef {
+                name: "StrictRouter".to_string(),
+                agent_name: "Classifier".to_string(),
+                agent_call: Expr::Var("$input".to_string()),
+                routes: vec![HandoffRoute {
+                    pattern: "only_this".to_string(),
+                    target_agent: "OnlyAgent".to_string(),
+                }],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let result = evaluator.run_handoff(
+            "StrictRouter",
+            Value::String("something_else".to_string()),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No route matches"));
+    }
+
+    #[test]
+    fn test_handoff_not_found() {
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.run_handoff("NoSuchHandoff", Value::Null);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_handoff_traces_output() {
+        let mut evaluator = setup_handoff_evaluator();
+
+        evaluator
+            .run_handoff("Router", Value::String("billing".to_string()))
+            .unwrap();
+
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[Handoff Run] Router with classifier 'Classifier'"));
+        assert!(output.contains("[Handoff Classified]"));
+        assert!(output.contains("[Handoff Routed] 'billing' -> agent 'BillingAgent'"));
+    }
+}
+
+// ========================================================================
+// M24 Runtime: Workflow Transition Tests
+// ========================================================================
+#[cfg(test)]
+mod workflow_runtime_tests {
+    use crate::ast::{Expr, Program, Statement, WorkflowState, WorkflowTransition};
+    use crate::eval::{Evaluator, Value};
+
+    fn setup_workflow_evaluator() -> Evaluator {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![Statement::WorkflowDef {
+                name: "OrderFlow".to_string(),
+                states: vec![
+                    WorkflowState {
+                        name: "pending".to_string(),
+                        transitions: vec![WorkflowTransition {
+                            event: "submit".to_string(),
+                            target_state: "processing".to_string(),
+                        }],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "processing".to_string(),
+                        transitions: vec![
+                            WorkflowTransition {
+                                event: "complete".to_string(),
+                                target_state: "shipped".to_string(),
+                            },
+                            WorkflowTransition {
+                                event: "cancel".to_string(),
+                                target_state: "cancelled".to_string(),
+                            },
+                        ],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "shipped".to_string(),
+                        transitions: vec![],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "cancelled".to_string(),
+                        transitions: vec![],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+        evaluator
+    }
+
+    #[test]
+    fn test_workflow_initial_state() {
+        let evaluator = setup_workflow_evaluator();
+        let state = evaluator.get_workflow_state("OrderFlow").unwrap();
+        assert_eq!(state, Value::String("pending".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_single_transition() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        let result = evaluator.transition_workflow("OrderFlow", "submit");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::String("processing".to_string()));
+
+        // Verify state was actually updated
+        let state = evaluator.get_workflow_state("OrderFlow").unwrap();
+        assert_eq!(state, Value::String("processing".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_multi_step_transitions() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        // pending -> processing -> shipped
+        evaluator.transition_workflow("OrderFlow", "submit").unwrap();
+        let result = evaluator.transition_workflow("OrderFlow", "complete");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::String("shipped".to_string()));
+
+        let state = evaluator.get_workflow_state("OrderFlow").unwrap();
+        assert_eq!(state, Value::String("shipped".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_cancel_branch() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        // pending -> processing -> cancelled
+        evaluator.transition_workflow("OrderFlow", "submit").unwrap();
+        let result = evaluator.transition_workflow("OrderFlow", "cancel");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::String("cancelled".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_invalid_event() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        // "cancel" is not valid from "pending" state
+        let result = evaluator.transition_workflow("OrderFlow", "cancel");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No transition for event"));
+    }
+
+    #[test]
+    fn test_workflow_terminal_state() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        // Go to terminal state "shipped"
+        evaluator.transition_workflow("OrderFlow", "submit").unwrap();
+        evaluator
+            .transition_workflow("OrderFlow", "complete")
+            .unwrap();
+
+        // No transitions from "shipped"
+        let result = evaluator.transition_workflow("OrderFlow", "anything");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No transition for event"));
+    }
+
+    #[test]
+    fn test_workflow_not_found() {
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.transition_workflow("NoWorkflow", "event");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_get_workflow_state_not_found() {
+        let evaluator = Evaluator::new();
+        let result = evaluator.get_workflow_state("Missing");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_traces_output() {
+        let mut evaluator = setup_workflow_evaluator();
+
+        evaluator.transition_workflow("OrderFlow", "submit").unwrap();
+
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[Workflow Transition] OrderFlow: 'pending' --(submit)-> 'processing'"));
+    }
+
+    #[test]
+    fn test_workflow_requires_contract_pass() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::WorkflowDef {
+                name: "ContractFlow".to_string(),
+                states: vec![
+                    WorkflowState {
+                        name: "start".to_string(),
+                        transitions: vec![WorkflowTransition {
+                            event: "go".to_string(),
+                            target_state: "end".to_string(),
+                        }],
+                        requires: Some(Expr::Var("$is_ready".to_string())),
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "end".to_string(),
+                        transitions: vec![],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        // Set the requires variable to truthy value
+        evaluator
+            .variables
+            .insert("$is_ready".to_string(), Value::Bool(true));
+
+        let result = evaluator.transition_workflow("ContractFlow", "go");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::String("end".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_requires_contract_fail() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::WorkflowDef {
+                name: "GuardedFlow".to_string(),
+                states: vec![
+                    WorkflowState {
+                        name: "start".to_string(),
+                        transitions: vec![WorkflowTransition {
+                            event: "go".to_string(),
+                            target_state: "end".to_string(),
+                        }],
+                        requires: Some(Expr::Var("$condition".to_string())),
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "end".to_string(),
+                        transitions: vec![],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        // Set requires condition to false
+        evaluator
+            .variables
+            .insert("$condition".to_string(), Value::Bool(false));
+
+        let result = evaluator.transition_workflow("GuardedFlow", "go");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("requires failed"));
+    }
+
+    #[test]
+    fn test_workflow_ensures_contract_fail() {
+        let mut evaluator = Evaluator::new();
+
+        let program = Program {
+            statements: vec![Statement::WorkflowDef {
+                name: "EnsuresFlow".to_string(),
+                states: vec![
+                    WorkflowState {
+                        name: "start".to_string(),
+                        transitions: vec![WorkflowTransition {
+                            event: "go".to_string(),
+                            target_state: "end".to_string(),
+                        }],
+                        requires: None,
+                        ensures: None,
+                        body: vec![],
+                    },
+                    WorkflowState {
+                        name: "end".to_string(),
+                        transitions: vec![],
+                        requires: None,
+                        ensures: Some(Expr::Var("$postcondition".to_string())),
+                        body: vec![],
+                    },
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        // Set ensures condition to false
+        evaluator
+            .variables
+            .insert("$postcondition".to_string(), Value::Bool(false));
+
+        let result = evaluator.transition_workflow("EnsuresFlow", "go");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("ensures failed"));
+    }
+}
+
+// ========================================================================
+// M26 Runtime: Memory Operation Tests
+// ========================================================================
+#[cfg(test)]
+mod memory_runtime_tests {
+    use crate::ast::{Program, Statement};
+    use crate::eval::{Evaluator, Value};
+
+    fn setup_memory_evaluator() -> Evaluator {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![Statement::MemoryDef {
+                name: "KnowledgeBase".to_string(),
+                store: Some("local://memory".to_string()),
+                embedding_model: None,
+                operations: vec![
+                    "remember".to_string(),
+                    "recall".to_string(),
+                    "forget".to_string(),
+                ],
+            }],
+        };
+        evaluator.eval_program(program);
+        evaluator
+    }
+
+    #[test]
+    fn test_memory_remember() {
+        let mut evaluator = setup_memory_evaluator();
+
+        let result = evaluator.memory_remember(
+            "KnowledgeBase",
+            "rust_safety".to_string(),
+            Value::String("Rust ensures memory safety".to_string()),
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        // Verify it's stored
+        let mem = evaluator.memories.get("KnowledgeBase").unwrap();
+        assert_eq!(mem.entries.len(), 1);
+        assert_eq!(mem.entries[0].0, "rust_safety");
+    }
+
+    #[test]
+    fn test_memory_recall_keyword_match() {
+        let mut evaluator = setup_memory_evaluator();
+
+        // Store some entries
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "rust_safety".to_string(),
+                Value::String("Rust ensures memory safety".to_string()),
+            )
+            .unwrap();
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "python_typing".to_string(),
+                Value::String("Python has optional type hints".to_string()),
+            )
+            .unwrap();
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "rust_concurrency".to_string(),
+                Value::String("Rust prevents data races".to_string()),
+            )
+            .unwrap();
+
+        // Recall with keyword "rust" should match rust_safety and rust_concurrency
+        let result = evaluator.memory_recall("KnowledgeBase", "rust", 10);
+        assert!(result.is_ok());
+        if let Value::Array(items) = result.unwrap() {
+            assert_eq!(items.len(), 2);
+            // Check that both rust entries are present
+            let combined: String = items
+                .iter()
+                .map(|v| format!("{}", v))
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(combined.contains("rust_safety"));
+            assert!(combined.contains("rust_concurrency"));
+        } else {
+            panic!("Expected Array from recall");
+        }
+    }
+
+    #[test]
+    fn test_memory_recall_no_match_returns_recent() {
+        let mut evaluator = setup_memory_evaluator();
+
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "entry1".to_string(),
+                Value::String("first".to_string()),
+            )
+            .unwrap();
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "entry2".to_string(),
+                Value::String("second".to_string()),
+            )
+            .unwrap();
+
+        // Query that matches nothing
+        let result = evaluator.memory_recall("KnowledgeBase", "zzzzz_no_match", 1);
+        assert!(result.is_ok());
+        // Should return most recent entry as fallback
+        if let Value::Array(items) = result.unwrap() {
+            assert_eq!(items.len(), 1);
+            // Most recent is entry2
+            let s = format!("{}", items[0]);
+            assert!(s.contains("entry2"));
+        } else {
+            panic!("Expected Array");
+        }
+    }
+
+    #[test]
+    fn test_memory_recall_top_k_limit() {
+        let mut evaluator = setup_memory_evaluator();
+
+        // Store 5 entries with "data" in the key
+        for i in 0..5 {
+            evaluator
+                .memory_remember(
+                    "KnowledgeBase",
+                    format!("data_{}", i),
+                    Value::Number(i as f64),
+                )
+                .unwrap();
+        }
+
+        // Recall with top_k=2
+        let result = evaluator.memory_recall("KnowledgeBase", "data", 2);
+        assert!(result.is_ok());
+        if let Value::Array(items) = result.unwrap() {
+            assert_eq!(items.len(), 2);
+        } else {
+            panic!("Expected Array");
+        }
+    }
+
+    #[test]
+    fn test_memory_forget() {
+        let mut evaluator = setup_memory_evaluator();
+
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "temp_data".to_string(),
+                Value::String("temporary".to_string()),
+            )
+            .unwrap();
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "keep_data".to_string(),
+                Value::String("permanent".to_string()),
+            )
+            .unwrap();
+
+        // Forget temp_data
+        let result = evaluator.memory_forget("KnowledgeBase", "temp_data");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::Number(1.0)); // 1 entry removed
+
+        // Verify only keep_data remains
+        let mem = evaluator.memories.get("KnowledgeBase").unwrap();
+        assert_eq!(mem.entries.len(), 1);
+        assert_eq!(mem.entries[0].0, "keep_data");
+    }
+
+    #[test]
+    fn test_memory_forget_nonexistent_key() {
+        let mut evaluator = setup_memory_evaluator();
+
+        let result = evaluator.memory_forget("KnowledgeBase", "does_not_exist");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::Number(0.0)); // 0 entries removed
+    }
+
+    #[test]
+    fn test_memory_not_found() {
+        let mut evaluator = Evaluator::new();
+
+        let result = evaluator.memory_remember(
+            "NonExistent",
+            "key".to_string(),
+            Value::Null,
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn test_memory_operation_not_permitted() {
+        let mut evaluator = Evaluator::new();
+
+        // Memory that only allows "recall"
+        let program = Program {
+            statements: vec![Statement::MemoryDef {
+                name: "ReadOnly".to_string(),
+                store: None,
+                embedding_model: None,
+                operations: vec!["recall".to_string()],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        // Try to remember — should fail
+        let result = evaluator.memory_remember(
+            "ReadOnly",
+            "key".to_string(),
+            Value::String("value".to_string()),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not permitted"));
+
+        // Try to forget — should fail
+        let result = evaluator.memory_forget("ReadOnly", "key");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not permitted"));
+    }
+
+    #[test]
+    fn test_memory_empty_operations_allows_all() {
+        let mut evaluator = Evaluator::new();
+
+        // Memory with empty operations list — everything is allowed
+        let program = Program {
+            statements: vec![Statement::MemoryDef {
+                name: "OpenMemory".to_string(),
+                store: None,
+                embedding_model: None,
+                operations: vec![],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        let r1 = evaluator.memory_remember(
+            "OpenMemory",
+            "key".to_string(),
+            Value::String("value".to_string()),
+        );
+        assert!(r1.is_ok());
+
+        let r2 = evaluator.memory_recall("OpenMemory", "key", 5);
+        assert!(r2.is_ok());
+
+        let r3 = evaluator.memory_forget("OpenMemory", "key");
+        assert!(r3.is_ok());
+    }
+
+    #[test]
+    fn test_memory_traces_output() {
+        let mut evaluator = setup_memory_evaluator();
+
+        evaluator
+            .memory_remember(
+                "KnowledgeBase",
+                "test_key".to_string(),
+                Value::String("test_val".to_string()),
+            )
+            .unwrap();
+        evaluator
+            .memory_recall("KnowledgeBase", "test", 5)
+            .unwrap();
+        evaluator
+            .memory_forget("KnowledgeBase", "test_key")
+            .unwrap();
+
+        let output = evaluator.output.join("\n");
+        assert!(output.contains("[Memory Remember] KnowledgeBase['test_key']"));
+        assert!(output.contains("[Memory Recall] KnowledgeBase query='test'"));
+        assert!(output.contains("[Memory Forget] KnowledgeBase key='test_key'"));
+    }
+}
+
+// ========================================================================
+// Runtime Integration: End-to-End Tests
+// ========================================================================
+#[cfg(test)]
+mod runtime_integration_tests {
+    use crate::ast::{
+        Expr, PipelineStage, Program, Statement, WorkflowState,
+        WorkflowTransition,
+
+    };
+    use crate::eval::{Evaluator, Value};
+
+    #[test]
+    fn test_full_runtime_lifecycle() {
+        let mut evaluator = Evaluator::new();
+
+        // Register everything
+        let program = Program {
+            statements: vec![
+                // MCP tool
+                Statement::McpToolDef {
+                    name: "search".to_string(),
+                    server: "search-server".to_string(),
+                    permission: None,
+                    capabilities: vec!["find".to_string()],
+                    timeout: Some(10.0),
+                },
+                // Memory
+                Statement::MemoryDef {
+                    name: "Cache".to_string(),
+                    store: None,
+                    embedding_model: None,
+                    operations: vec![
+                        "remember".to_string(),
+                        "recall".to_string(),
+                        "forget".to_string(),
+                    ],
+                },
+                // Workflow
+                Statement::WorkflowDef {
+                    name: "TaskFlow".to_string(),
+                    states: vec![
+                        WorkflowState {
+                            name: "open".to_string(),
+                            transitions: vec![WorkflowTransition {
+                                event: "start".to_string(),
+                                target_state: "in_progress".to_string(),
+                            }],
+                            requires: None,
+                            ensures: None,
+                            body: vec![],
+                        },
+                        WorkflowState {
+                            name: "in_progress".to_string(),
+                            transitions: vec![WorkflowTransition {
+                                event: "done".to_string(),
+                                target_state: "closed".to_string(),
+                            }],
+                            requires: None,
+                            ensures: None,
+                            body: vec![],
+                        },
+                        WorkflowState {
+                            name: "closed".to_string(),
+                            transitions: vec![],
+                            requires: None,
+                            ensures: None,
+                            body: vec![],
+                        },
+                    ],
+                },
+                // Pipeline
+                Statement::PipelineDef {
+                    name: "DataPipeline".to_string(),
+                    stages: vec![
+                        PipelineStage {
+                            agent_name: "Fetcher".to_string(),
+                            call: Expr::String("fetched_data".to_string()),
+                        },
+                        PipelineStage {
+                            agent_name: "Processor".to_string(),
+                            call: Expr::Var("$prev".to_string()),
+                        },
+                    ],
+                },
+            ],
+        };
+        evaluator.eval_program(program);
+
+        // 1. Call MCP tool
+        let mcp_result = evaluator.eval_call(
+            "search",
+            vec![Expr::String("query".to_string())],
+        );
+        assert!(mcp_result.is_ok());
+
+        // 2. Store result in memory
+        evaluator
+            .memory_remember(
+                "Cache",
+                "search_result".to_string(),
+                mcp_result.unwrap(),
+            )
+            .unwrap();
+
+        // 3. Recall from memory
+        let recalled = evaluator.memory_recall("Cache", "search", 1);
+        assert!(recalled.is_ok());
+
+        // 4. Run pipeline
+        let pipeline_result = evaluator.run_pipeline(
+            "DataPipeline",
+            Value::String("input".to_string()),
+        );
+        assert!(pipeline_result.is_ok());
+        assert_eq!(
+            pipeline_result.unwrap(),
+            Value::String("fetched_data".to_string())
+        );
+
+        // 5. Progress workflow
+        evaluator
+            .transition_workflow("TaskFlow", "start")
+            .unwrap();
+        evaluator
+            .transition_workflow("TaskFlow", "done")
+            .unwrap();
+        let final_state = evaluator.get_workflow_state("TaskFlow").unwrap();
+        assert_eq!(final_state, Value::String("closed".to_string()));
+
+        // 6. Clean up memory
+        evaluator.memory_forget("Cache", "search_result").unwrap();
+        let mem = evaluator.memories.get("Cache").unwrap();
+        assert!(mem.entries.is_empty());
+    }
+}
