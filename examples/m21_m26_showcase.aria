@@ -1,0 +1,200 @@
+// ============================================================================
+// Aria-Lang M21-M26 Showcase: AI Ecosystem Integration
+// ============================================================================
+// This example demonstrates all new features introduced in milestones M21-M26:
+//   M21: Native MCP Client Support
+//   M22: Multi-Agent Orchestration (pipeline, concurrent, handoff)
+//   M23: A2A Protocol (Agent-to-Agent)
+//   M24: Workflow State Machines
+//   M25: Declarative Model Requirements
+//   M26: Type-Safe Agent Memory
+// ============================================================================
+
+// -------------------------------------------------------------------------
+// M25: Declare model requirements (provider-agnostic)
+// -------------------------------------------------------------------------
+model gpt4 {
+    capability: "chat_completion"
+    provider: "openai"
+    supports: [tool_calling, structured_output, vision]
+}
+
+model embedder {
+    capability: "embedding"
+    provider: "openai"
+    supports: [text_embedding]
+}
+
+// -------------------------------------------------------------------------
+// M21: MCP Tool Definitions — connect to external MCP servers
+// All MCP tool calls go through Aria's permission system
+// -------------------------------------------------------------------------
+tool github_search from mcp("github-mcp-server") {
+    permission: "mcp.github",
+    capabilities: [search_code, search_issues, get_file],
+    timeout: 15
+}
+
+tool filesystem from mcp("fs-mcp-server") {
+    permission: "mcp.filesystem",
+    capabilities: [read_file, list_dir],
+    timeout: 10
+}
+
+tool database from mcp("postgres-mcp-server") {
+    permission: "mcp.database",
+    capabilities: [query, insert],
+    timeout: 30
+}
+
+// -------------------------------------------------------------------------
+// M26: Type-Safe Agent Memory
+// -------------------------------------------------------------------------
+memory ProjectKnowledge {
+    store: "chromadb://localhost:8000/project"
+    embedding: "text_embedder"
+    operations: [remember, recall, forget]
+}
+
+memory ConversationHistory {
+    store: "sqlite://./conversations.db"
+    embedding: "ada"
+    operations: [remember, recall]
+}
+
+// -------------------------------------------------------------------------
+// Original: Standard tool and agent definitions
+// -------------------------------------------------------------------------
+tool analyze(code: string) {
+    permission: "code.read",
+    timeout: 30
+}
+
+tool echo(text: string) {
+    permission: "io.write",
+    timeout: 5
+}
+
+agent CodeAnalyzer {
+    allow analyze
+    allow github_search
+    allow echo
+
+    task review_code(repo: string) {
+        think { "Analyzing repository structure and code quality" }
+        print "Starting code review"
+        return "Review complete"
+    }
+
+    task find_bugs(query: string) {
+        think { "Searching for potential bugs matching the query" }
+        print "Bug search initiated"
+        return "Bug scan complete"
+    }
+}
+
+agent Summarizer {
+    allow echo
+
+    task summarize(input: string) {
+        print "Generating summary"
+        return "Summary generated"
+    }
+}
+
+// -------------------------------------------------------------------------
+// M22: Pipeline Orchestration — sequential agent processing
+// Each stage receives the output of the previous stage
+// -------------------------------------------------------------------------
+pipeline CodeReviewPipeline {
+    stage CodeAnalyzer -> review_code($repo)
+    stage Summarizer -> summarize($analysis)
+}
+
+// -------------------------------------------------------------------------
+// M22: Concurrent Orchestration — parallel agent fan-out
+// All branches execute simultaneously, results merged
+// -------------------------------------------------------------------------
+concurrent ComprehensiveSearch {
+    agent CodeAnalyzer -> find_bugs($query)
+    agent Summarizer -> summarize($query)
+    merge combine_results($results)
+}
+
+// -------------------------------------------------------------------------
+// M22: Handoff Orchestration — intelligent routing
+// Classifier agent determines which specialist handles the request
+// -------------------------------------------------------------------------
+handoff SupportRouter {
+    agent CodeAnalyzer -> review_code($input)
+    route "bug" => CodeAnalyzer
+    route "docs" => Summarizer
+    route _ => CodeAnalyzer
+}
+
+// -------------------------------------------------------------------------
+// M23: A2A Protocol — publish agent capabilities for discovery
+// Other agents (even from different systems) can find and invoke these
+// -------------------------------------------------------------------------
+a2a CodeAnalyzerCard {
+    discovery: "/.well-known/agent.json"
+    skills: [code_review, bug_detection, security_audit]
+    endpoint: "https://agents.aria.dev/code-analyzer"
+}
+
+a2a SummarizerCard {
+    discovery: "/.well-known/agent.json"
+    skills: [summarize, condense, extract_key_points]
+    endpoint: "https://agents.aria.dev/summarizer"
+}
+
+// -------------------------------------------------------------------------
+// M24: Workflow State Machine — typed state transitions with contracts
+// Compile-time verifiable: all states reachable, all transitions handled
+// -------------------------------------------------------------------------
+workflow PullRequestReview {
+    state draft {
+        on submit -> pending_review
+    }
+    state pending_review {
+        on assign_reviewer -> in_review
+    }
+    state in_review {
+        requires $reviewer_assigned
+        on approve -> approved
+        on request_changes -> changes_requested
+        on reject -> rejected
+    }
+    state changes_requested {
+        on update -> in_review
+        on close -> closed
+    }
+    state approved {
+        ensures $all_checks_passed
+        on merge -> merged
+    }
+    state merged {
+        ensures $branch_deleted
+    }
+    state rejected {
+    }
+    state closed {
+    }
+}
+
+// -------------------------------------------------------------------------
+// Main: Bring it all together
+// -------------------------------------------------------------------------
+main {
+    print "Aria-Lang M21-M26 Ecosystem Demo"
+    print "================================="
+
+    // Spawn agents
+    let $analyzer = spawn CodeAnalyzer
+    let $summarizer = spawn Summarizer
+
+    // Delegate tasks
+    delegate analyzer.review_code("aria-lang")
+
+    print "All features registered and operational."
+}

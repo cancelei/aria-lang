@@ -39,6 +39,92 @@ pub struct Tool {
     pub timeout: Option<f64>,
 }
 
+// M21: MCP Tool definition
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct McpTool {
+    pub name: String,
+    pub server: String,
+    pub permission: Option<String>,
+    pub capabilities: Vec<String>,
+    pub timeout: Option<f64>,
+}
+
+// M22: Orchestration definitions stored at runtime
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct PipelineInstance {
+    pub name: String,
+    pub stages: Vec<(String, Expr)>, // (agent_name, call)
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ConcurrentInstance {
+    pub name: String,
+    pub branches: Vec<(String, Expr)>, // (agent_name, call)
+    pub merge_fn: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct HandoffInstance {
+    pub name: String,
+    pub agent_name: String,
+    pub agent_call: Expr,
+    pub routes: Vec<(String, String)>, // (pattern, target_agent)
+}
+
+// M23: A2A agent card
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct A2ACard {
+    pub name: String,
+    pub discovery: Option<String>,
+    pub skills: Vec<String>,
+    pub endpoint: Option<String>,
+}
+
+// M24: Workflow instance
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct WorkflowInstance {
+    pub name: String,
+    pub current_state: String,
+    pub states: HashMap<String, WorkflowStateRuntime>,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct WorkflowStateRuntime {
+    pub name: String,
+    pub transitions: Vec<(String, String)>, // (event, target_state)
+    pub requires: Option<Expr>,
+    pub ensures: Option<Expr>,
+    pub body: Vec<Statement>,
+}
+
+// M25: Model definition
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ModelInstance {
+    pub name: String,
+    pub capability: Option<String>,
+    pub provider: Option<String>,
+    pub supports: Vec<String>,
+}
+
+// M26: Memory definition
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct MemoryInstance {
+    pub name: String,
+    pub store: Option<String>,
+    pub embedding_model: Option<String>,
+    pub operations: Vec<String>,
+    pub entries: Vec<(String, Value)>, // Simple in-memory key-value for runtime
+}
+
 // Day 3: Agent definition (the "type" of agent)
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -69,6 +155,21 @@ pub struct Evaluator {
     pub tracker: ResourceTracker,      // Day 5: Runtime resource usage tracking
     pub builtins: BuiltinRegistry,     // Day 6: Standard library functions
     pub output: Vec<String>,           // Captured runtime trace for testing
+
+    // M21: MCP tools registry
+    pub mcp_tools: HashMap<String, McpTool>,
+    // M22: Orchestration registries
+    pub pipelines: HashMap<String, PipelineInstance>,
+    pub concurrent_defs: HashMap<String, ConcurrentInstance>,
+    pub handoffs: HashMap<String, HandoffInstance>,
+    // M23: A2A cards
+    pub a2a_cards: HashMap<String, A2ACard>,
+    // M24: Workflows
+    pub workflows: HashMap<String, WorkflowInstance>,
+    // M25: Models
+    pub models: HashMap<String, ModelInstance>,
+    // M26: Memories
+    pub memories: HashMap<String, MemoryInstance>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,7 +177,9 @@ pub enum Value {
     String(String),
     Number(f64),
     Null,
-    Agent(String), // NEW: Represents an agent instance
+    Agent(String),       // Represents an agent instance
+    Array(Vec<Value>),   // M22: For concurrent results aggregation
+    Bool(bool),          // M24: For contract evaluation
 }
 
 impl fmt::Display for Value {
@@ -86,6 +189,17 @@ impl fmt::Display for Value {
             Value::Number(n) => write!(f, "{}", n),
             Value::Null => write!(f, "null"),
             Value::Agent(a) => write!(f, "[Agent: {}]", a),
+            Value::Array(items) => {
+                write!(f, "[")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", item)?;
+                }
+                write!(f, "]")
+            }
+            Value::Bool(b) => write!(f, "{}", b),
         }
     }
 }
@@ -97,11 +211,20 @@ impl Evaluator {
             tools: HashMap::new(),
             agent_defs: HashMap::new(),
             agents: HashMap::new(),
-            current_agent: None,                 // Day 4: Start in main context
-            limits: ResourceLimits::default(),   // Day 5: Default resource limits
-            tracker: ResourceTracker::default(), // Day 5: Fresh resource tracker
-            builtins: BuiltinRegistry::new(),    // Day 6: Initialize stdlib
+            current_agent: None,
+            limits: ResourceLimits::default(),
+            tracker: ResourceTracker::default(),
+            builtins: BuiltinRegistry::new(),
             output: Vec::new(),
+            // M21-M26: Initialize new registries
+            mcp_tools: HashMap::new(),
+            pipelines: HashMap::new(),
+            concurrent_defs: HashMap::new(),
+            handoffs: HashMap::new(),
+            a2a_cards: HashMap::new(),
+            workflows: HashMap::new(),
+            models: HashMap::new(),
+            memories: HashMap::new(),
         }
     }
 
@@ -225,6 +348,223 @@ impl Evaluator {
                 // For now, just evaluate the expression and log it
                 let val = self.eval_expr(expr)?;
                 self.emit(format!("[Return] {:?}", val));
+            }
+
+            // ==============================================================
+            // M21: MCP Tool Registration
+            // ==============================================================
+            Statement::McpToolDef {
+                name,
+                server,
+                permission,
+                capabilities,
+                timeout,
+            } => {
+                let mcp_tool = McpTool {
+                    name: name.clone(),
+                    server: server.clone(),
+                    permission: permission.clone(),
+                    capabilities: capabilities.clone(),
+                    timeout,
+                };
+                self.mcp_tools.insert(name.clone(), mcp_tool);
+                // Also register as a regular tool so permission checks work
+                let tool = Tool {
+                    name: name.clone(),
+                    params: vec![], // MCP tools have dynamic params
+                    permission: permission.clone(),
+                    timeout,
+                };
+                self.tools.insert(name.clone(), tool);
+                self.emit(format!(
+                    "[MCP Tool Registered] {} from server '{}' (capabilities: {:?}, permission: {:?})",
+                    name, server, capabilities, permission
+                ));
+            }
+
+            // ==============================================================
+            // M22: Pipeline Orchestration
+            // ==============================================================
+            Statement::PipelineDef { name, stages } => {
+                let stage_data: Vec<(String, Expr)> = stages
+                    .into_iter()
+                    .map(|s| (s.agent_name, s.call))
+                    .collect();
+                let stage_count = stage_data.len();
+                let stage_names: Vec<String> = stage_data.iter().map(|(n, _)| n.clone()).collect();
+                self.pipelines.insert(
+                    name.clone(),
+                    PipelineInstance {
+                        name: name.clone(),
+                        stages: stage_data,
+                    },
+                );
+                self.emit(format!(
+                    "[Pipeline Registered] {} with {} stages: {:?}",
+                    name, stage_count, stage_names
+                ));
+            }
+
+            // M22: Concurrent Orchestration
+            Statement::ConcurrentDef {
+                name,
+                branches,
+                merge_fn,
+            } => {
+                let branch_data: Vec<(String, Expr)> = branches
+                    .into_iter()
+                    .map(|b| (b.agent_name, b.call))
+                    .collect();
+                let branch_count = branch_data.len();
+                let branch_names: Vec<String> = branch_data.iter().map(|(n, _)| n.clone()).collect();
+                let has_merge = merge_fn.is_some();
+                self.concurrent_defs.insert(
+                    name.clone(),
+                    ConcurrentInstance {
+                        name: name.clone(),
+                        branches: branch_data,
+                        merge_fn,
+                    },
+                );
+                self.emit(format!(
+                    "[Concurrent Registered] {} with {} branches: {:?} (merge: {})",
+                    name, branch_count, branch_names, has_merge
+                ));
+            }
+
+            // M22: Handoff Orchestration
+            Statement::HandoffDef {
+                name,
+                agent_name,
+                agent_call,
+                routes,
+            } => {
+                let route_data: Vec<(String, String)> = routes
+                    .into_iter()
+                    .map(|r| (r.pattern, r.target_agent))
+                    .collect();
+                let route_count = route_data.len();
+                self.handoffs.insert(
+                    name.clone(),
+                    HandoffInstance {
+                        name: name.clone(),
+                        agent_name: agent_name.clone(),
+                        agent_call,
+                        routes: route_data,
+                    },
+                );
+                self.emit(format!(
+                    "[Handoff Registered] {} with classifier '{}' and {} routes",
+                    name, agent_name, route_count
+                ));
+            }
+
+            // ==============================================================
+            // M23: A2A Protocol Registration
+            // ==============================================================
+            Statement::A2ADef {
+                name,
+                discovery,
+                skills,
+                endpoint,
+            } => {
+                let card = A2ACard {
+                    name: name.clone(),
+                    discovery: discovery.clone(),
+                    skills: skills.clone(),
+                    endpoint: endpoint.clone(),
+                };
+                self.a2a_cards.insert(name.clone(), card);
+                self.emit(format!(
+                    "[A2A Card Registered] {} (discovery: {:?}, skills: {:?}, endpoint: {:?})",
+                    name, discovery, skills, endpoint
+                ));
+            }
+
+            // ==============================================================
+            // M24: Workflow State Machine Registration
+            // ==============================================================
+            Statement::WorkflowDef { name, states } => {
+                let mut state_map = HashMap::new();
+                let first_state = states.first().map(|s| s.name.clone()).unwrap_or_default();
+
+                for state in &states {
+                    let transitions: Vec<(String, String)> = state
+                        .transitions
+                        .iter()
+                        .map(|t| (t.event.clone(), t.target_state.clone()))
+                        .collect();
+                    state_map.insert(
+                        state.name.clone(),
+                        WorkflowStateRuntime {
+                            name: state.name.clone(),
+                            transitions,
+                            requires: state.requires.clone(),
+                            ensures: state.ensures.clone(),
+                            body: state.body.clone(),
+                        },
+                    );
+                }
+
+                let state_names: Vec<String> = states.iter().map(|s| s.name.clone()).collect();
+                let transition_count: usize = states.iter().map(|s| s.transitions.len()).sum();
+                self.workflows.insert(
+                    name.clone(),
+                    WorkflowInstance {
+                        name: name.clone(),
+                        current_state: first_state.clone(),
+                        states: state_map,
+                    },
+                );
+                self.emit(format!(
+                    "[Workflow Registered] {} with {} states: {:?} ({} transitions, initial: '{}')",
+                    name, state_names.len(), state_names, transition_count, first_state
+                ));
+            }
+
+            // ==============================================================
+            // M25: Model Declaration Registration
+            // ==============================================================
+            Statement::ModelDef {
+                name,
+                capability,
+                provider,
+                supports,
+            } => {
+                let model = ModelInstance {
+                    name: name.clone(),
+                    capability: capability.clone(),
+                    provider: provider.clone(),
+                    supports: supports.clone(),
+                };
+                self.models.insert(name.clone(), model);
+                self.emit(format!(
+                    "[Model Registered] {} (capability: {:?}, provider: {:?}, supports: {:?})",
+                    name, capability, provider, supports
+                ));
+            }
+
+            // ==============================================================
+            // M26: Memory Definition Registration
+            // ==============================================================
+            Statement::MemoryDef {
+                name,
+                store,
+                embedding_model,
+                operations,
+            } => {
+                let mem = MemoryInstance {
+                    name: name.clone(),
+                    store: store.clone(),
+                    embedding_model: embedding_model.clone(),
+                    operations: operations.clone(),
+                    entries: Vec::new(),
+                };
+                self.memories.insert(name.clone(), mem);
+                self.emit(format!(
+                    "[Memory Registered] {} (store: {:?}, embedding: {:?}, operations: {:?})",
+                    name, store, embedding_model, operations
+                ));
             }
         }
         Ok(())
@@ -524,6 +864,13 @@ impl Evaluator {
             Expr::MemberAccess { .. } => {
                 // TODO: Implement member access
                 Err("Member access not yet implemented".to_string())
+            }
+            Expr::Array(elements) => {
+                let mut values = Vec::new();
+                for elem in elements {
+                    values.push(self.eval_expr(elem)?);
+                }
+                Ok(Value::Array(values))
             }
         }
     }

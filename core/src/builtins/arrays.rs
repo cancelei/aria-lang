@@ -107,6 +107,8 @@ pub fn arr_push(args: Vec<Value>) -> Result<Value, String> {
         Value::Number(n) => n.to_string(),
         Value::Null => "null".to_string(),
         Value::Agent(a) => a.clone(),
+        Value::Array(items) => format!("{:?}", items),
+        Value::Bool(b) => b.to_string(),
     };
 
     let mut arr: Vec<String> =
