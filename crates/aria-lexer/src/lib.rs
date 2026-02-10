@@ -305,7 +305,7 @@ pub enum TokenKind {
     #[token("=>")]
     FatArrow,
     #[token("|>")]
-    Pipe_,
+    PipeRight,
     #[token("..")]
     DotDot,
     #[token("..<")]
@@ -528,7 +528,7 @@ impl fmt::Display for TokenKind {
             TokenKind::GtGtEq => write!(f, ">>="),
             TokenKind::Arrow => write!(f, "->"),
             TokenKind::FatArrow => write!(f, "=>"),
-            TokenKind::Pipe_ => write!(f, "|>"),
+            TokenKind::PipeRight => write!(f, "|>"),
             TokenKind::DotDot => write!(f, ".."),
             TokenKind::DotDotLt => write!(f, "..<"),
             TokenKind::DotDotEq => write!(f, "..="),
@@ -814,7 +814,7 @@ mod tests {
         assert_eq!(tokens[0].kind, TokenKind::Plus);
         assert_eq!(tokens[4].kind, TokenKind::EqEq);
         assert_eq!(tokens[8].kind, TokenKind::Arrow);
-        assert_eq!(tokens[10].kind, TokenKind::Pipe_);
+        assert_eq!(tokens[10].kind, TokenKind::PipeRight);
     }
 
     #[test]
@@ -1439,7 +1439,7 @@ end"#;
         assert_eq!(format!("{}", TokenKind::Arrow), "->");
         assert_eq!(format!("{}", TokenKind::FatArrow), "=>");
         assert_eq!(format!("{}", TokenKind::ColonColon), "::");
-        assert_eq!(format!("{}", TokenKind::Pipe_), "|>");
+        assert_eq!(format!("{}", TokenKind::PipeRight), "|>");
     }
 
     #[test]

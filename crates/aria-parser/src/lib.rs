@@ -1248,7 +1248,7 @@ impl<'src> Parser<'src> {
     fn parse_pipe(&mut self) -> ParseResult<Expr> {
         let mut left = self.parse_channel_send()?;
 
-        while self.check(&TokenKind::Pipe_) {
+        while self.check(&TokenKind::PipeRight) {
             self.advance();
             let right = self.parse_channel_send()?;
             let span = left.span.merge(right.span);
@@ -3303,10 +3303,11 @@ impl<'src> Parser<'src> {
                 self.advance();
                 let mut items = Vec::new();
                 if !self.check(&TokenKind::RBrace) {
-                    let name = self.parse_identifier()?;
+                    // Use parse_any_identifier to allow type names like Array, Map, etc.
+                    let name = self.parse_any_identifier()?;
                     let item_alias = if self.check(&TokenKind::As) {
                         self.advance();
-                        Some(self.parse_identifier()?)
+                        Some(self.parse_any_identifier()?)
                     } else {
                         None
                     };
@@ -3320,10 +3321,10 @@ impl<'src> Parser<'src> {
                         if self.check(&TokenKind::RBrace) {
                             break;
                         }
-                        let name = self.parse_identifier()?;
+                        let name = self.parse_any_identifier()?;
                         let item_alias = if self.check(&TokenKind::As) {
                             self.advance();
-                            Some(self.parse_identifier()?)
+                            Some(self.parse_any_identifier()?)
                         } else {
                             None
                         };
