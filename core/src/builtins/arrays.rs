@@ -107,7 +107,18 @@ pub fn arr_push(args: Vec<Value>) -> Result<Value, String> {
         Value::Number(n) => n.to_string(),
         Value::Null => "null".to_string(),
         Value::Agent(a) => a.clone(),
-        Value::Array(items) => format!("{:?}", items),
+        Value::Array(items) => {
+            let json_items: Vec<serde_json::Value> = items.iter().map(|v| match v {
+                Value::String(s) => serde_json::Value::String(s.clone()),
+                Value::Number(n) => serde_json::Number::from_f64(*n)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null),
+                Value::Bool(b) => serde_json::Value::Bool(*b),
+                Value::Null => serde_json::Value::Null,
+                other => serde_json::Value::String(format!("{}", other)),
+            }).collect();
+            serde_json::to_string(&json_items).unwrap_or_else(|_| "[]".to_string())
+        }
         Value::Bool(b) => b.to_string(),
     };
 

@@ -49,13 +49,15 @@ impl JsonRpcRequest {
 /// Spawn an MCP server process and establish a stdio connection.
 /// stderr is inherited (passed to parent) to avoid deadlocks from unconsumed piped stderr.
 pub fn connect_to_server(server_command: &str) -> Result<McpConnection, String> {
-    // Parse the server command — support "command arg1 arg2" format
-    let parts: Vec<&str> = server_command.split_whitespace().collect();
+    // Parse the server command using shell-words to handle quoted paths correctly
+    // e.g., '"/path with spaces/server" arg1 arg2'
+    let parts = shell_words::split(server_command)
+        .map_err(|e| format!("[MCP Error] Failed to parse server command '{}': {}", server_command, e))?;
     if parts.is_empty() {
         return Err("[MCP Error] Empty server command".to_string());
     }
 
-    let program = parts[0];
+    let program = &parts[0];
     let args = &parts[1..];
 
     let mut process = Command::new(program)
