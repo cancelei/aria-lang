@@ -4,7 +4,7 @@
 
 While other frameworks rely on **persuasion** (prompt engineering: *"Please don't delete files"*), Aria-Lang relies on **physics** (runtime constraints: *"The agent literally cannot delete files without a Human-In-The-Loop gate"*).
 
-**Status:** v1.0.0 - *83 tests passing, zero warnings*
+**Status:** v1.1.0 — 898 tests passing, zero failures
 
 ## Why Aria-Lang?
 
@@ -33,7 +33,7 @@ think { "User asked for a poem. I should avoid cliches." }
 print "Roses are red..."
 ```
 
-### Permission Enforcement (Day 4)
+### Permission Enforcement
 Agents can only call tools they're explicitly allowed to use.
 ```aria
 tool echo(text: string) {
@@ -57,14 +57,14 @@ main {
 }
 ```
 
-### Sandboxed Execution (Day 4-5)
+### Sandboxed Execution
 Tool calls execute in sandboxed subprocesses with timeout enforcement and resource limits.
 - **Timeout enforcement**: Watchdog thread kills long-running tools
 - **Step limits**: Max 10,000 statements per program (configurable)
 - **Depth limits**: Max 32 delegation depth (prevents infinite delegation chains)
 - **Output limits**: Max 1MB output per tool call (truncated with warning)
 
-### Standard Library (Day 6)
+### Standard Library
 22 builtin functions available without tool definitions:
 ```aria
 // String operations
@@ -84,6 +84,15 @@ let $content = file_read("/etc/hostname")
 file_write("/tmp/out.txt", "hello")
 ```
 
+### MIR Compiler Pipeline
+Full compiler infrastructure with Mid-level Intermediate Representation:
+- **Lexer** (logos-based) → **Parser** (recursive descent) → **AST** → **MIR lowering** → **Codegen**
+- Type inference with Hindley-Milner unification
+- Generic functions with type parameter inference
+- String interpolation, lambdas/closures with capture analysis
+- Array/map comprehensions, pattern matching, effect system
+- Cranelift and WASM codegen backends
+
 ## Getting Started
 
 ### Requirements
@@ -93,16 +102,16 @@ file_write("/tmp/out.txt", "hello")
 ```bash
 # Clone the repo
 git clone https://github.com/cancelei/aria-lang
-cd aria-lang/core
+cd aria-lang
 
 # Run the REPL
-cargo run
+cargo run -p aria
 
 # Run a script
-cargo run -- ../examples/full_demo.aria
+cargo run -p aria -- examples/full_demo.aria
 
-# Run tests
-cargo test --workspace --all-targets
+# Run all tests
+cargo test --workspace
 
 # Release build
 cargo build --release
@@ -111,47 +120,62 @@ cargo build --release
 ## Architecture
 
 ```
-core/src/
-  lexer.rs          - Tokenization (logos-based)
-  ast.rs            - Abstract syntax tree definitions
-  parser.rs         - Recursive descent parser
-  eval.rs           - Evaluator with permission enforcement & resource limits
-  tool_executor.rs  - Sandboxed subprocess execution with timeouts
-  builtins/         - Standard library (22 native functions)
-    strings.rs      - 9 string operations
-    arrays.rs       - 6 array operations
-    json.rs         - 3 JSON operations
-    files.rs        - 4 file operations
+core/src/                     Runtime & interpreter
+  lexer.rs                    Tokenization (logos-based)
+  ast.rs                      Abstract syntax tree
+  parser.rs                   Recursive descent parser
+  eval.rs                     Evaluator with permissions & resource limits
+  tool_executor.rs            Sandboxed subprocess execution
+  mcp_client.rs               MCP protocol client
+  builtins/                   Standard library (22 native functions)
+
+crates/
+  aria-ast/                   AST definitions (shared across compiler)
+  aria-lexer/                 Lexer (shared)
+  aria-types/                 Type system & Hindley-Milner inference
+  aria-mir/                   MIR lowering, optimization, pretty-printing
+  aria-codegen/               Cranelift & WASM backends
+  aria-compiler/              Compiler driver
+  aria-contracts/             Contract verification
+  aria-diagnostics/           Error reporting with suggestions
+  aria-effects/               Algebraic effect system
+  aria-channel/               Channel & select concurrency primitives
+  aria-ffi/                   C FFI bridge
+  aria-runtime/               Runtime support library
 ```
-
-## Roadmap: The Journey to Digital Organisms
-
-- [x] **Day 0: The Skeleton** - Lexer, Parser, AST, Basic Runtime
-- [x] **Day 1: The Brain** - `think` blocks, Variable Scopes
-- [x] **Day 2: The Conscience** - `gate` primitive for Human-In-The-Loop
-- [x] **Day 3: The Hands** - `tool` definitions, `agent` scopes, `spawn`/`delegate` primitives
-- [x] **Day 4: The Nervous System** - Sandboxed execution, Permission enforcement
-- [x] **Day 5: The Immune System** - Runtime resource limits, Timeout enforcement
-- [x] **Day 6: The Voice** - Standard Library with 22 builtin functions
-- [x] **Day 7: The Organism** - v1.0 Release
 
 ## Test Summary
 
-| Module | Tests |
-|--------|-------|
-| Lexer | 5 |
-| Parser | 17 |
-| Evaluator | 15 |
-| Permissions | 4 |
-| Resource Limits | 4 |
-| Tool Executor | 10 |
-| Builtins (strings) | 11 |
-| Builtins (arrays) | 8 |
-| Builtins (JSON) | 5 |
-| Builtins (files) | 4 |
-| **Total** | **83** (+ 2 integration test scripts) |
+| Area | Tests |
+|------|-------|
+| Core (lexer, parser, evaluator, permissions, builtins, tool executor) | 161 |
+| Type system & inference | 241 |
+| MIR lowering & optimization | 77 |
+| MIR integration tests | 25 |
+| Parser (crate) | 101 |
+| AST | 51 |
+| Diagnostics | 23 |
+| Effects | 31 |
+| Channels & concurrency | 26 |
+| Contracts | 31 |
+| FFI | 20 |
+| Codegen | 9 |
+| Feature-specific tests (pattern guards, async/await, traits, etc.) | 101 |
+| Doc tests | 1 |
+| **Total** | **898** |
+
+## Roadmap
+
+- [x] **Day 0-2**: Core language — Lexer, Parser, `think`, `gate`
+- [x] **Day 3**: Agent primitives — `tool`, `agent`, `spawn`/`delegate`, MIR parser extensions
+- [x] **Day 4**: Permission enforcement & sandboxed execution
+- [x] **Day 5**: Runtime resource limits & timeout enforcement
+- [x] **Day 6**: Standard library (22 builtins)
+- [x] **Day 7**: v1.0 release
+- [x] **Post-v1.0**: MIR compiler pipeline, type inference, MCP client, orchestration
+- [ ] **Next**: WASM target, LSP server, package manager
 
 ## Contribute
 
 We are building this **with** the agent community.
-*   **Repo:** [github.com/cancelei/aria-lang](https://github.com/cancelei/aria-lang)
+- **Repo:** [github.com/cancelei/aria-lang](https://github.com/cancelei/aria-lang)
