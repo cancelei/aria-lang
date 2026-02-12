@@ -1192,10 +1192,12 @@ fn lower_match_expr(
         scrutinee.span,
     );
 
-    // Determine result type from first arm body
+    // Infer result type: for expression arms use the scrutinee type as a
+    // reasonable default (the actual arm expression type may differ, but this
+    // avoids always defaulting to Int); for block arms use Unit.
     let result_ty = if let Some(first_arm) = arms.first() {
         match &first_arm.body {
-            ast::MatchArmBody::Expr(_) => MirType::Int,
+            ast::MatchArmBody::Expr(_) => scrutinee_ty.clone(),
             ast::MatchArmBody::Block(_) => MirType::Unit,
         }
     } else {
@@ -1405,7 +1407,17 @@ fn lower_pipe(
     let arg = lower_expr(ctx, left)?;
     let func = lower_expr(ctx, right)?;
 
-    let result = ctx.new_temp(MirType::Int);
+    // Infer return type from the function being called
+    let return_ty = match &func {
+        Operand::Constant(Constant::Function(fn_id)) => {
+            ctx.ctx.get_function(fn_id)
+                .map(|f| f.return_ty.clone())
+                .unwrap_or(MirType::Int)
+        }
+        _ => MirType::Int, // Fallback for function pointers
+    };
+
+    let result = ctx.new_temp(return_ty);
     let next_block = ctx.func.new_block();
 
     ctx.emit_terminator(
@@ -1620,7 +1632,6 @@ fn lower_ternary(
     span: Span,
 ) -> Result<Operand> {
     // Ternary is just if/else expression
-    let result = ctx.new_temp(MirType::Int);
     let then_block = ctx.func.new_block();
     let else_block = ctx.func.new_block();
     let merge_block = ctx.func.new_block();
@@ -1637,6 +1648,9 @@ fn lower_ternary(
     // Then
     ctx.current_block = then_block;
     let then_val = lower_expr(ctx, then_expr)?;
+    // Infer result type from the then-branch value
+    let result_ty = infer_operand_type(ctx, &then_val);
+    let result = ctx.new_temp(result_ty);
     ctx.emit_assign(Place::from_local(result), Rvalue::Use(then_val), then_expr.span);
     ctx.emit_terminator(TerminatorKind::Goto { target: merge_block }, span);
 

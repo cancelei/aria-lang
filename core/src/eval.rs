@@ -847,11 +847,11 @@ impl Evaluator {
             permission,
             timeout,
         };
+        let param_count = tool.params.len();
         self.tools.insert(name.clone(), tool);
         self.emit(format!(
             "[Tool Registered] {} with {} params",
-            name,
-            self.tools.get(&name).unwrap().params.len()
+            name, param_count
         ));
         Ok(())
     }

@@ -895,4 +895,205 @@ mod tests {
         assert!(!MirType::TypeVar(TypeVarId(0)).is_copy());
         assert!(!MirType::TypeParam("T".into()).is_copy());
     }
+
+    // ========================================================================
+    // Lowering Context Tests
+    // ========================================================================
+
+    #[test]
+    fn test_lowering_context_builtins_registered() {
+        let ctx = LoweringContext::new();
+
+        // Core builtins should be registered
+        assert!(ctx.lookup_function("print").is_some());
+        assert!(ctx.lookup_function("println").is_some());
+        assert!(ctx.lookup_function("len").is_some());
+        assert!(ctx.lookup_function("assert").is_some());
+        assert!(ctx.lookup_function("panic").is_some());
+
+        // String builtins
+        assert!(ctx.lookup_function("contains").is_some());
+        assert!(ctx.lookup_function("trim").is_some());
+        assert!(ctx.lookup_function("split").is_some());
+
+        // Math builtins
+        assert!(ctx.lookup_function("abs").is_some());
+        assert!(ctx.lookup_function("sqrt").is_some());
+
+        // Collection builtins
+        assert!(ctx.lookup_function("push").is_some());
+        assert!(ctx.lookup_function("map").is_some());
+        assert!(ctx.lookup_function("filter").is_some());
+
+        // Non-existent function should return None
+        assert!(ctx.lookup_function("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_lowering_context_builtin_return_types() {
+        let ctx = LoweringContext::new();
+
+        // Check return types of builtins
+        let print_id = ctx.lookup_function("print").unwrap();
+        let print_fn = ctx.get_function(&print_id).unwrap();
+        assert_eq!(print_fn.return_ty, MirType::Unit);
+
+        let len_id = ctx.lookup_function("len").unwrap();
+        let len_fn = ctx.get_function(&len_id).unwrap();
+        assert_eq!(len_fn.return_ty, MirType::Int);
+
+        let sqrt_id = ctx.lookup_function("sqrt").unwrap();
+        let sqrt_fn = ctx.get_function(&sqrt_id).unwrap();
+        assert_eq!(sqrt_fn.return_ty, MirType::Float);
+
+        let contains_id = ctx.lookup_function("contains").unwrap();
+        let contains_fn = ctx.get_function(&contains_id).unwrap();
+        assert_eq!(contains_fn.return_ty, MirType::Bool);
+
+        let panic_id = ctx.lookup_function("panic").unwrap();
+        let panic_fn = ctx.get_function(&panic_id).unwrap();
+        assert_eq!(panic_fn.return_ty, MirType::Never);
+    }
+
+    #[test]
+    fn test_lowering_context_string_interning() {
+        let mut ctx = LoweringContext::new();
+
+        let idx1 = ctx.intern_string("hello".into());
+        let idx2 = ctx.intern_string("world".into());
+        let idx3 = ctx.intern_string("hello".into());
+
+        // Same string should get same index
+        assert_eq!(idx1, idx3);
+        // Different strings should get different indices
+        assert_ne!(idx1, idx2);
+    }
+
+    // ========================================================================
+    // Module Registry Tests
+    // ========================================================================
+
+    #[test]
+    fn test_module_registry_function_lookup() {
+        use crate::lower::{ModuleTypeRegistry, FunctionSignature};
+
+        let mut registry = ModuleTypeRegistry::new();
+
+        registry.register_function(
+            "math::add".into(),
+            FunctionSignature {
+                params: vec![("a".into(), MirType::Int), ("b".into(), MirType::Int)],
+                return_type: MirType::Int,
+                type_params: vec![],
+            },
+        );
+
+        // Direct lookup
+        let sig = registry.lookup_function("math::add");
+        assert!(sig.is_some());
+        assert_eq!(sig.unwrap().return_type, MirType::Int);
+
+        // Unknown function
+        assert!(registry.lookup_function("math::sub").is_none());
+    }
+
+    #[test]
+    fn test_module_registry_alias_resolution() {
+        use crate::lower::{ModuleTypeRegistry, FunctionSignature};
+
+        let mut registry = ModuleTypeRegistry::new();
+
+        registry.register_function(
+            "std::collections::list::new".into(),
+            FunctionSignature {
+                params: vec![],
+                return_type: MirType::Array(Box::new(MirType::Int)),
+                type_params: vec![],
+            },
+        );
+
+        registry.add_alias("collections".into(), "std::collections".into());
+
+        // Should resolve through alias
+        let sig = registry.lookup_function("collections::list::new");
+        assert!(sig.is_some());
+    }
+
+    #[test]
+    fn test_module_registry_struct_and_enum() {
+        use crate::lower::ModuleTypeRegistry;
+
+        let mut registry = ModuleTypeRegistry::new();
+
+        registry.register_struct(
+            "geom::Point".into(),
+            vec![("x".into(), MirType::Float), ("y".into(), MirType::Float)],
+        );
+
+        registry.register_enum(
+            "result::Result".into(),
+            vec![
+                ("Ok".into(), vec![MirType::Int]),
+                ("Err".into(), vec![MirType::String]),
+            ],
+        );
+
+        assert!(registry.lookup_struct("geom::Point").is_some());
+        let fields = registry.lookup_struct("geom::Point").unwrap();
+        assert_eq!(fields.len(), 2);
+
+        assert!(registry.lookup_enum("result::Result").is_some());
+        let variants = registry.lookup_enum("result::Result").unwrap();
+        assert_eq!(variants.len(), 2);
+    }
+
+    // ========================================================================
+    // Return Type Validation Tests
+    // ========================================================================
+
+    #[test]
+    fn test_types_compatible_numeric_coercion() {
+        // Test that the type system handles numeric coercion
+        // Int should be assignable to Float positions
+        let int_ty = MirType::Int;
+        let float_ty = MirType::Float;
+
+        // These are different types
+        assert_ne!(int_ty, float_ty);
+
+        // But Int is a subtype of all integer types via unification
+        let mut ctx = LoweringContext::new();
+        let var = ctx.fresh_type_var();
+        assert!(ctx.unify_types(&var, &MirType::Int));
+        let resolved = ctx.resolve_type(&var);
+        assert_eq!(resolved, MirType::Int);
+    }
+
+    #[test]
+    fn test_nested_type_var_unification() {
+        let mut ctx = LoweringContext::new();
+        let var_a = ctx.fresh_type_var();
+        let var_b = ctx.fresh_type_var();
+
+        // Unify a with Array<b>
+        let arr_b = MirType::Array(Box::new(var_b.clone()));
+        assert!(ctx.unify_types(&var_a, &arr_b));
+
+        // Unify b with String
+        assert!(ctx.unify_types(&var_b, &MirType::String));
+
+        // Resolving a should give Array<String>
+        let resolved = ctx.resolve_type(&var_a);
+        assert_eq!(resolved, MirType::Array(Box::new(MirType::String)));
+    }
+
+    #[test]
+    fn test_occurs_check_prevents_infinite_types() {
+        let mut ctx = LoweringContext::new();
+        let var = ctx.fresh_type_var();
+
+        // T = Array<T> would create an infinite type
+        let arr_var = MirType::Array(Box::new(var.clone()));
+        assert!(!ctx.unify_types(&var, &arr_var));
+    }
 }

@@ -239,7 +239,15 @@ fn lower_for(
     let loop_exit = ctx.func.new_block();
 
     // Evaluate iterable
-    let _iter = ctx.lower_expr(iterable)?;
+    let iter = ctx.lower_expr(iterable)?;
+
+    // Infer element type from iterable
+    let iter_ty = infer_operand_type(ctx, &iter);
+    let elem_ty = match &iter_ty {
+        MirType::Array(elem) => (**elem).clone(),
+        MirType::String => MirType::Char,
+        _ => MirType::Int, // Fallback for ranges and unknown iterables
+    };
 
     // Jump to header
     ctx.emit_terminator(TerminatorKind::Goto { target: loop_header }, span);
@@ -255,9 +263,9 @@ fn lower_for(
     ctx.push_loop(loop_exit, loop_header);
 
     // Bind pattern (simplified - just bind to pattern variable)
-    // TODO: Proper pattern matching
+    // TODO: Proper pattern matching for destructuring
     if let ast::PatternKind::Ident(name) = &pattern.kind {
-        let local = ctx.new_named_local(name.clone(), MirType::Int);
+        let local = ctx.new_named_local(name.clone(), elem_ty);
         ctx.emit_stmt(StatementKind::StorageLive(local), pattern.span);
     }
 
@@ -478,32 +486,41 @@ fn lower_match_stmt(
     let merge_block = ctx.func.new_block();
 
     let scrutinee_op = ctx.lower_expr(scrutinee)?;
-    let scrutinee_local = ctx.new_temp(MirType::Int);
+    let scrutinee_ty = infer_operand_type(ctx, &scrutinee_op);
+    let scrutinee_local = ctx.new_temp(scrutinee_ty);
     ctx.emit_assign(
         Place::from_local(scrutinee_local),
         Rvalue::Use(scrutinee_op),
         scrutinee.span,
     );
 
-    // For now, implement simple linear chain
-    // TODO: Proper decision tree compilation
-    let mut next_check = ctx.func.new_block();
+    // Linear chain pattern matching using lower_pattern_match
+    let mut check_block = ctx.func.new_block();
+    ctx.emit_terminator(TerminatorKind::Goto { target: check_block }, span);
 
     for (i, arm) in arms.iter().enumerate() {
-        ctx.current_block = next_check;
+        ctx.current_block = check_block;
 
-        let arm_block = ctx.func.new_block();
-        next_check = if i < arms.len() - 1 {
+        let arm_body_block = ctx.func.new_block();
+        let next_arm_block = if i < arms.len() - 1 {
             ctx.func.new_block()
         } else {
             merge_block
         };
 
-        // For now, always match (TODO: proper pattern matching)
-        ctx.emit_terminator(TerminatorKind::Goto { target: arm_block }, span);
+        // Use pattern matching to test and bind the pattern
+        use crate::lower_pattern::lower_pattern_match;
+        lower_pattern_match(
+            ctx,
+            &arm.pattern,
+            Place::from_local(scrutinee_local),
+            arm_body_block,
+            next_arm_block,
+            arm.pattern.span,
+        )?;
 
         // Arm body
-        ctx.current_block = arm_block;
+        ctx.current_block = arm_body_block;
         match &arm.body {
             ast::MatchArmBody::Expr(expr) => {
                 ctx.lower_expr(expr)?;
@@ -515,6 +532,8 @@ fn lower_match_stmt(
         if !ctx.is_terminated() {
             ctx.emit_terminator(TerminatorKind::Goto { target: merge_block }, span);
         }
+
+        check_block = next_arm_block;
     }
 
     ctx.current_block = merge_block;

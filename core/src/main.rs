@@ -26,7 +26,13 @@ fn main() {
         return;
     }
 
-    let source = fs::read_to_string(&args[1]).expect("Failed to read source file");
+    let source = match fs::read_to_string(&args[1]) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[Error] Failed to read source file '{}': {}", args[1], e);
+            std::process::exit(1);
+        }
+    };
     run_source(&source);
 }
 
@@ -51,10 +57,15 @@ fn run_repl() {
 
     loop {
         print!("aria> ");
-        io::stdout().flush().unwrap();
+        if io::stdout().flush().is_err() {
+            break;
+        }
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        if io::stdin().read_line(&mut input).is_err() {
+            eprintln!("[Error] Failed to read input");
+            break;
+        }
 
         let input = input.trim();
         if input == "exit" {

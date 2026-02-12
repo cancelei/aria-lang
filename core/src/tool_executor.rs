@@ -86,11 +86,23 @@ pub fn execute_tool_command(
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 // Day 5: Enforce output size limit
                 if stdout.len() as u64 > max_output_bytes {
-                    let truncated = &stdout[..max_output_bytes as usize];
+                    // Find a valid UTF-8 boundary at or before max_output_bytes
+                    let limit = max_output_bytes as usize;
+                    let truncate_at = if limit >= stdout.len() {
+                        stdout.len()
+                    } else {
+                        // Walk backwards from limit to find a valid char boundary
+                        let mut pos = limit;
+                        while pos > 0 && !stdout.is_char_boundary(pos) {
+                            pos -= 1;
+                        }
+                        pos
+                    };
+                    let truncated = &stdout[..truncate_at];
                     println!(
                         "[Sandbox] Output truncated: {} -> {} bytes (limit: {})",
                         stdout.len(),
-                        max_output_bytes,
+                        truncate_at,
                         max_output_bytes
                     );
                     return Ok(Value::String(format!(
@@ -254,10 +266,10 @@ mod tests {
 
     #[test]
     fn test_output_truncation() {
-        // Generate output larger than the limit
+        // Generate output larger than the limit using a POSIX-compatible command
         let result = execute_tool_command(
             "shell",
-            &[Value::String("printf 'A%.0s' {1..100}".to_string())],
+            &[Value::String("dd if=/dev/zero bs=1 count=100 2>/dev/null | tr '\\0' 'A'".to_string())],
             Some(5.0),
             10, // Very small limit: 10 bytes
         );
