@@ -6,6 +6,7 @@ members = [
     "crates/aria-ast",
     "crates/aria-types",
     "crates/aria-mir",
+    "crates/aria-parser",
 ]
 
 [workspace.package]

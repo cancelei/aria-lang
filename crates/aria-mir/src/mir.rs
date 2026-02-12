@@ -1189,6 +1189,8 @@ pub enum CastKind {
     FloatToInt,
     /// Pointer cast
     PtrToPtr,
+    /// Convert any value to its string representation
+    ToString,
 }
 
 // ============================================================================
