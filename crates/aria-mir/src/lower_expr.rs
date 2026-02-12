@@ -4,6 +4,8 @@ use aria_ast::{self as ast, BinaryOp, UnaryOp};
 use aria_lexer::Span;
 use smol_str::SmolStr;
 
+use rustc_hash::FxHashMap;
+
 use crate::lower::FunctionLoweringContext;
 use crate::mir::*;
 use crate::{MirError, Result};
@@ -928,22 +930,6 @@ fn infer_type_args_for_generic(
     type_subst
 }
 
-/// Infer the return type for a generic function call.
-///
-/// This function matches argument types against parameter types to infer
-/// concrete types for type parameters, then substitutes them in the return type.
-#[allow(dead_code)]
-fn infer_generic_return_type(
-    ctx: &FunctionLoweringContext,
-    mir_func: &MirFunction,
-    args: &[Operand],
-) -> MirType {
-    let type_subst = infer_type_args_for_generic(ctx, mir_func, args);
-
-    // Substitute type parameters in the return type
-    substitute_type_params(&mir_func.return_ty, &type_subst)
-}
-
 /// Extract type parameter bindings by matching a parameter type against an argument type.
 fn extract_type_bindings(
     param_ty: &MirType,
@@ -1324,15 +1310,15 @@ fn lower_lambda(
     // 2. Collect captured variables from the enclosing scope
     // 3. Return a Closure operand referencing the function + captures
 
-    // Build param types
+    // Build param types (use type variable for unannoted params to enable inference)
     let param_types: Vec<MirType> = params.iter().map(|p| {
         p.ty.as_ref()
             .map(|t| ctx.ctx.lower_type(t))
-            .unwrap_or(MirType::Int)
+            .unwrap_or_else(|| ctx.ctx.fresh_type_var())
     }).collect();
 
-    // Create the lambda function with a generated name
-    let lambda_name: SmolStr = format!("__lambda_{}", span.start).into();
+    // Create the lambda function with a unique generated name
+    let lambda_name = ctx.ctx.next_lambda_name("__lambda");
     let mut lambda_fn = MirFunction::new(lambda_name.clone(), MirType::Int, span);
 
     // Add parameters
@@ -1417,10 +1403,10 @@ fn lower_block_lambda(
     let param_types: Vec<MirType> = params.iter().map(|p| {
         p.ty.as_ref()
             .map(|t| ctx.ctx.lower_type(t))
-            .unwrap_or(MirType::Int)
+            .unwrap_or_else(|| ctx.ctx.fresh_type_var())
     }).collect();
 
-    let lambda_name: SmolStr = format!("__block_lambda_{}", span.start).into();
+    let lambda_name = ctx.ctx.next_lambda_name("__block_lambda");
     let mut lambda_fn = MirFunction::new(lambda_name.clone(), MirType::Unit, span);
 
     let entry_block = lambda_fn.new_block();
@@ -1596,7 +1582,83 @@ fn visit_expr_idents(expr: &ast::Expr, visitor: &mut dyn FnMut(&SmolStr)) {
                 }
             }
         }
-        // For other expression kinds, we don't recurse (simplification)
+        ast::ExprKind::Match { scrutinee, arms } => {
+            visit_expr_idents(scrutinee, visitor);
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    visit_expr_idents(guard, visitor);
+                }
+                match &arm.body {
+                    ast::MatchArmBody::Expr(e) => visit_expr_idents(e, visitor),
+                    ast::MatchArmBody::Block(b) => {
+                        for stmt in &b.stmts {
+                            visit_stmt_idents(stmt, visitor);
+                        }
+                    }
+                }
+            }
+        }
+        ast::ExprKind::Block(block) => {
+            for stmt in &block.stmts {
+                visit_stmt_idents(stmt, visitor);
+            }
+        }
+        ast::ExprKind::Lambda { body, .. } => {
+            visit_expr_idents(body, visitor);
+        }
+        ast::ExprKind::BlockLambda { body, .. } => {
+            for stmt in &body.stmts {
+                visit_stmt_idents(stmt, visitor);
+            }
+        }
+        ast::ExprKind::ArrayComprehension { element, iterable, condition, .. } => {
+            visit_expr_idents(element, visitor);
+            visit_expr_idents(iterable, visitor);
+            if let Some(cond) = condition {
+                visit_expr_idents(cond, visitor);
+            }
+        }
+        ast::ExprKind::MapComprehension { key, value, iterable, condition, .. } => {
+            visit_expr_idents(key, visitor);
+            visit_expr_idents(value, visitor);
+            visit_expr_idents(iterable, visitor);
+            if let Some(cond) = condition {
+                visit_expr_idents(cond, visitor);
+            }
+        }
+        ast::ExprKind::Range { start, end, .. } => {
+            if let Some(s) = start { visit_expr_idents(s, visitor); }
+            if let Some(e) = end { visit_expr_idents(e, visitor); }
+        }
+        ast::ExprKind::Spawn(inner) | ast::ExprKind::Await(inner)
+            | ast::ExprKind::Try(inner) | ast::ExprKind::Unwrap(inner)
+            | ast::ExprKind::Old(inner) => {
+            visit_expr_idents(inner, visitor);
+        }
+        ast::ExprKind::ChannelSend { channel, value } => {
+            visit_expr_idents(channel, visitor);
+            visit_expr_idents(value, visitor);
+        }
+        ast::ExprKind::ChannelRecv { channel } => {
+            visit_expr_idents(channel, visitor);
+        }
+        ast::ExprKind::SafeNav { object, .. } => {
+            visit_expr_idents(object, visitor);
+        }
+        ast::ExprKind::StructInit { fields, .. } => {
+            for f in fields {
+                if let Some(val) = &f.value {
+                    visit_expr_idents(val, visitor);
+                }
+            }
+        }
+        ast::ExprKind::Map(pairs) => {
+            for (k, v) in pairs {
+                visit_expr_idents(k, visitor);
+                visit_expr_idents(v, visitor);
+            }
+        }
+        // Literals and leaf nodes that don't reference identifiers
         _ => {}
     }
 }
@@ -1616,8 +1678,6 @@ fn visit_stmt_idents(stmt: &ast::Stmt, visitor: &mut dyn FnMut(&SmolStr)) {
         _ => {}
     }
 }
-
-use rustc_hash::FxHashMap;
 
 // ============================================================================
 // Comprehensions

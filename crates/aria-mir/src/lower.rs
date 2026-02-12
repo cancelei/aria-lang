@@ -39,6 +39,9 @@ pub struct LoweringContext {
     /// Current type parameters in scope (for generic functions/structs)
     /// Maps type parameter names (e.g., "T") to their representation in MIR
     current_type_params: Vec<SmolStr>,
+
+    /// Counter for generating unique lambda names
+    next_lambda_id: u32,
 }
 
 /// Registry for tracking types exported from modules
@@ -296,6 +299,7 @@ impl LoweringContext {
             type_ctx: TypeInferenceContext::new(),
             module_registry: ModuleTypeRegistry::new(),
             current_type_params: Vec::new(),
+            next_lambda_id: 0,
         };
         ctx.register_builtins();
         ctx
@@ -309,6 +313,13 @@ impl LoweringContext {
     /// Get a mutable reference to the module type registry
     pub fn module_registry_mut(&mut self) -> &mut ModuleTypeRegistry {
         &mut self.module_registry
+    }
+
+    /// Generate a unique lambda name
+    pub fn next_lambda_name(&mut self, prefix: &str) -> SmolStr {
+        let id = self.next_lambda_id;
+        self.next_lambda_id += 1;
+        SmolStr::new(format!("{prefix}_{id}"))
     }
 
     /// Get a fresh type variable for inference
