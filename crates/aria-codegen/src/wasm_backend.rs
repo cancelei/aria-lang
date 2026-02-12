@@ -53,7 +53,7 @@ pub enum WasmType {
 
 impl WasmType {
     /// Get the byte encoding for this type
-    fn encode(&self) -> u8 {
+    pub fn encode(&self) -> u8 {
         match self {
             WasmType::I32 => 0x7F,
             WasmType::I64 => 0x7E,
@@ -187,7 +187,7 @@ enum WasmOp {
 }
 
 /// Convert MIR type to WASM type
-fn mir_type_to_wasm(ty: &MirType) -> WasmType {
+pub fn mir_type_to_wasm(ty: &MirType) -> WasmType {
     match ty {
         MirType::Unit => WasmType::I32,
         MirType::Bool => WasmType::I32,
@@ -213,6 +213,34 @@ pub struct WasmCompiler {
     func_id_map: HashMap<FunctionId, u32>,
     /// Export entries
     exports: Vec<(String, u32)>,
+}
+
+impl WasmCompiler {
+    /// Get the function type signatures (for Component Model reuse)
+    pub fn get_function_types(&self) -> &[(Vec<WasmType>, Vec<WasmType>)] {
+        &self.function_types
+    }
+
+    /// Get compiled function data: (type_idx, locals, code)
+    pub fn get_functions(&self) -> Vec<(u32, Vec<(u32, WasmType)>, Vec<u8>)> {
+        self.functions
+            .iter()
+            .map(|f| (f.type_idx, f.locals.clone(), f.code.clone()))
+            .collect()
+    }
+
+    /// Get export entries
+    pub fn get_exports(&self) -> Vec<(String, u32)> {
+        self.exports.clone()
+    }
+
+    /// Get code bodies: (locals, code) pairs
+    pub fn get_code_bodies(&self) -> Vec<(Vec<(u32, WasmType)>, Vec<u8>)> {
+        self.functions
+            .iter()
+            .map(|f| (f.locals.clone(), f.code.clone()))
+            .collect()
+    }
 }
 
 /// A compiled WASM function

@@ -4,7 +4,7 @@
 
 While other frameworks rely on **persuasion** (prompt engineering: *"Please don't delete files"*), Aria-Lang relies on **physics** (runtime constraints: *"The agent literally cannot delete files without a Human-In-The-Loop gate"*).
 
-**Status:** v1.1.0 — 898 tests passing, zero failures
+**Status:** v1.2.0 — 953 tests passing, zero failures
 
 ## Why Aria-Lang?
 
@@ -84,6 +84,18 @@ let $content = file_read("/etc/hostname")
 file_write("/tmp/out.txt", "hello")
 ```
 
+### Effects-as-WASM-Capabilities (Industry First)
+Aria's effect system maps directly to the WASM Component Model's capability system:
+```
+Aria Effect    →  WASI Capability       →  Physical Enforcement
+!IO            →  wasi:io/streams       →  Only I/O access
+!Console       →  wasi:cli/stdout       →  Only terminal access
+!FileSystem    →  wasi:filesystem       →  Only file access
+!Network       →  wasi:http             →  Only HTTP access
+!{} (pure)     →  No imports            →  Zero capabilities
+```
+An agent declared with `!{Network, FileSystem}` compiles to a WASM component that **physically cannot** access anything else. Two-layer guarantee: compile-time verification + runtime sandbox enforcement.
+
 ### MIR Compiler Pipeline
 Full compiler infrastructure with Mid-level Intermediate Representation:
 - **Lexer** (logos-based) → **Parser** (recursive descent) → **AST** → **MIR lowering** → **Codegen**
@@ -91,7 +103,7 @@ Full compiler infrastructure with Mid-level Intermediate Representation:
 - Generic functions with type parameter inference
 - String interpolation, lambdas/closures with capture analysis
 - Array/map comprehensions, pattern matching, effect system
-- Cranelift and WASM codegen backends
+- Cranelift, WASM core module, and WASM Component Model codegen backends
 
 ## Getting Started
 
@@ -134,7 +146,8 @@ crates/
   aria-lexer/                 Lexer (shared)
   aria-types/                 Type system & Hindley-Milner inference
   aria-mir/                   MIR lowering, optimization, pretty-printing
-  aria-codegen/               Cranelift & WASM backends
+  aria-codegen/               Cranelift, WASM core & Component Model backends
+  aria-wit/                   WIT generation from effect declarations
   aria-compiler/              Compiler driver
   aria-contracts/             Contract verification
   aria-diagnostics/           Error reporting with suggestions
@@ -159,10 +172,13 @@ crates/
 | Channels & concurrency | 26 |
 | Contracts | 31 |
 | FFI | 20 |
-| Codegen | 9 |
+| Codegen (Cranelift + WASM core) | 27 |
+| WASM Component Model | 7 |
+| WIT generation | 15 |
 | Feature-specific tests (pattern guards, async/await, traits, etc.) | 101 |
+| Inlining optimization | 4 |
 | Doc tests | 1 |
-| **Total** | **898** |
+| **Total** | **953** |
 
 ## Roadmap
 
@@ -173,7 +189,8 @@ crates/
 - [x] **Day 6**: Standard library (22 builtins)
 - [x] **Day 7**: v1.0 release
 - [x] **Post-v1.0**: MIR compiler pipeline, type inference, MCP client, orchestration
-- [ ] **Next**: WASM target, LSP server, package manager
+- [x] **v1.2.0**: Effects-as-WASM-Capabilities pipeline, WIT generation, Component Model codegen
+- [ ] **Next**: Compile-time gate coverage analysis, MCP native support, LSP server
 
 ## Contribute
 

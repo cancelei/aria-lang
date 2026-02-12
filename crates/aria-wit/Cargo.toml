@@ -1,0 +1,16 @@
+[package]
+name = "aria-wit"
+version = "0.1.0"
+edition = "2021"
+description = "WIT (WebAssembly Interface Types) generation from Aria effect declarations"
+authors = ["Aria Team"]
+
+[dependencies]
+aria-mir = { path = "../aria-mir" }
+smol_str = "0.2"
+rustc-hash = "1.1"
+thiserror = "1.0"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+aria-lexer = { path = "../aria-lexer" }

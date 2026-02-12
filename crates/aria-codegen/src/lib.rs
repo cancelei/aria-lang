@@ -28,10 +28,12 @@ mod types;
 mod cranelift_backend;
 mod runtime;
 mod wasm_backend;
+mod wasm_component;
 mod inline;
 
 pub use cranelift_backend::CraneliftCompiler;
-pub use wasm_backend::{WasmCompiler, compile_to_wasm};
+pub use wasm_backend::{WasmCompiler, WasmType, compile_to_wasm, mir_type_to_wasm};
+pub use wasm_component::{WasmComponentCompiler, WasmImport, compile_to_wasm_component};
 pub use inline::{inline_functions, InlineConfig, InlinePolicy};
 
 /// Target architecture for code generation
@@ -41,8 +43,10 @@ pub enum Target {
     X86_64,
     /// ARM64 (AArch64)
     Aarch64,
-    /// WebAssembly 32-bit
+    /// WebAssembly 32-bit (core module)
     Wasm32,
+    /// WebAssembly Component Model (with capability-based imports from effects)
+    WasmComponent,
 }
 
 impl Target {
@@ -67,7 +71,7 @@ impl Target {
         match self {
             Target::X86_64 => target_lexicon::Triple::host(),
             Target::Aarch64 => "aarch64-unknown-linux-gnu".parse().unwrap(),
-            Target::Wasm32 => "wasm32-unknown-unknown".parse().unwrap(),
+            Target::Wasm32 | Target::WasmComponent => "wasm32-unknown-unknown".parse().unwrap(),
         }
     }
 }
@@ -122,6 +126,7 @@ pub type Result<T> = std::result::Result<T, CodegenError>;
 pub fn compile_to_object(mir: &aria_mir::MirProgram, target: Target) -> Result<Vec<u8>> {
     match target {
         Target::Wasm32 => compile_to_wasm(mir, target),
+        Target::WasmComponent => compile_to_wasm_component(mir, target),
         _ => {
             let mut compiler = CraneliftCompiler::new(target)?;
             compiler.compile_program(mir)?;
