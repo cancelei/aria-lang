@@ -1082,7 +1082,7 @@ impl Evaluator {
                 if let Some(ref mut tracker) = agent.rate_limit_tracker {
                     tracker.check(name)?;
                     trace_msgs.push(format!(
-                        "[Rate Limit Check] Agent '{}' call to '{}' — within limits",
+                        "[Rate Limit Check] Agent '{}' call to '{}' - within limits",
                         agent_name, name
                     ));
                 }
@@ -1096,7 +1096,7 @@ impl Evaluator {
                             if let Some(ref mut budget) = agent.budget_tracker {
                                 budget.check_and_record(cost_val)?;
                                 trace_msgs.push(format!(
-                                    "[Budget Check] Agent '{}' spending {} — within budget",
+                                    "[Budget Check] Agent '{}' spending {} - within budget",
                                     agent_name, cost_val
                                 ));
                             }
