@@ -2362,7 +2362,7 @@ mod runtime_integration_tests {
 // ========================================================================
 #[cfg(test)]
 mod financial_safety_tests {
-    use crate::ast::{BudgetDef, Expr, Program, RateLimitDef, Statement, TaskDef};
+    use crate::ast::{BudgetDef, Expr, Program, RateLimitDef, Statement};
     use crate::eval::{BudgetTracker, Evaluator, RateLimitTracker, Value};
 
     // ---- Budget Tracker Unit Tests ----

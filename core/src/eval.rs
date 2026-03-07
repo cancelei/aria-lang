@@ -147,14 +147,13 @@ impl RateLimitTracker {
                     limit
                 ));
             }
+            self.global_calls.push(now);
         }
 
         // Clean up and check per-tool limit
         if let Some(&limit) = self.per_tool_limits.get(tool_name) {
-            let calls = self
-                .per_tool_calls
-                .entry(tool_name.to_string())
-                .or_default();
+            let tool_name_owned = tool_name.to_string();
+            let calls = self.per_tool_calls.entry(tool_name_owned).or_default();
             calls.retain(|t| *t > one_minute_ago);
             if calls.len() >= limit as usize {
                 return Err(format!(
@@ -164,14 +163,9 @@ impl RateLimitTracker {
                     limit
                 ));
             }
+            calls.push(now);
         }
 
-        // Record the call
-        self.global_calls.push(now);
-        self.per_tool_calls
-            .entry(tool_name.to_string())
-            .or_default()
-            .push(now);
         Ok(())
     }
 }
@@ -403,6 +397,16 @@ impl Evaluator {
         self.output.push(msg);
     }
 
+    /// Prompt for human confirmation via stdin (shared by Gate, GateTiered, VerifyIdentity)
+    fn prompt_human_confirmation(&mut self, message: &str) -> Result<(), String> {
+        self.emit(format!("({})", message));
+        let mut input = String::new();
+        std::io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn eval_program(&mut self, program: Program) {
         for stmt in program.statements {
             if let Err(e) = self.eval_statement(stmt) {
@@ -444,11 +448,7 @@ impl Evaluator {
                         _ => format!("{:?}", p),
                     }
                 ));
-                self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
-                let mut input = String::new();
-                std::io::stdin()
-                    .read_line(&mut input)
-                    .map_err(|e| e.to_string())?;
+                self.prompt_human_confirmation("Simulating Human Approval: Press Enter to Continue")?;
 
                 for s in body {
                     self.eval_statement(s)?;
@@ -790,49 +790,26 @@ impl Evaluator {
 
                 match action {
                     Some(GateAction::AutoApprove) => {
-                        self.emit(format!(
-                            "[Gate Auto-Approved] {}",
-                            prompt_str
-                        ));
-                        for stmt in body {
-                            self.eval_statement(stmt)?;
-                        }
-                    }
-                    Some(GateAction::RequireApproval) => {
-                        self.emit(format!(
-                            "[GATE] {}",
-                            prompt_str
-                        ));
-                        self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
-                        let mut input = String::new();
-                        std::io::stdin()
-                            .read_line(&mut input)
-                            .map_err(|e| e.to_string())?;
+                        self.emit(format!("[Gate Auto-Approved] {}", prompt_str));
                         for stmt in body {
                             self.eval_statement(stmt)?;
                         }
                     }
                     Some(GateAction::Deny) => {
-                        self.emit(format!(
-                            "[Gate Denied] {}",
-                            prompt_str
-                        ));
+                        self.emit(format!("[Gate Denied] {}", prompt_str));
                         return Err(format!(
                             "[Gate Denied] Operation blocked by tiered gate: {}",
                             prompt_str
                         ));
                     }
-                    None => {
-                        // No tier matched — default to require_approval (safest fallback)
-                        self.emit(format!(
-                            "[GATE] {} (no tier matched, defaulting to require_approval)",
-                            prompt_str
-                        ));
-                        self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
-                        let mut input = String::new();
-                        std::io::stdin()
-                            .read_line(&mut input)
-                            .map_err(|e| e.to_string())?;
+                    Some(GateAction::RequireApproval) | None => {
+                        let suffix = if action.is_none() {
+                            " (no tier matched, defaulting to require_approval)"
+                        } else {
+                            ""
+                        };
+                        self.emit(format!("[GATE] {}{}", prompt_str, suffix));
+                        self.prompt_human_confirmation("Simulating Human Approval: Press Enter to Continue")?;
                         for stmt in body {
                             self.eval_statement(stmt)?;
                         }
@@ -857,11 +834,7 @@ impl Evaluator {
                         "[Identity Verification Required] Verify identity: '{}'",
                         identity_str
                     ));
-                    self.emit("(Simulating Identity Verification: Press Enter to Confirm)".to_string());
-                    let mut input = String::new();
-                    std::io::stdin()
-                        .read_line(&mut input)
-                        .map_err(|e| e.to_string())?;
+                    self.prompt_human_confirmation("Simulating Identity Verification: Press Enter to Confirm")?;
                     self.verified_identities.insert(identity_str.clone());
                     self.emit(format!(
                         "[Identity Verified] '{}' added to verified set",
@@ -1054,11 +1027,16 @@ impl Evaluator {
                 .tools
                 .get(name)
                 .ok_or(format!("Unknown function or tool: '{}'", name))?;
+            let params = if tool.cost_param.is_some() {
+                tool.params.clone()
+            } else {
+                Vec::new()
+            };
             (
                 tool.permission.clone(),
                 tool.timeout,
                 tool.cost_param.clone(),
-                tool.params.clone(),
+                params,
             )
         };
 
@@ -1095,44 +1073,40 @@ impl Evaluator {
             evaluated_args.push(self.eval_expr(arg)?);
         }
 
-        // M27: RATE LIMIT ENFORCEMENT (Financial Physics!)
-        if let Some(agent_name) = &self.current_agent.clone() {
-            if let Some(agent) = self.agents.get_mut(agent_name) {
+        // M27: RATE LIMIT + BUDGET ENFORCEMENT (Financial Physics!)
+        // Collect trace messages to emit after releasing the mutable borrow on agents
+        let mut trace_msgs: Vec<String> = Vec::new();
+        if let Some(agent_name) = self.current_agent.clone() {
+            if let Some(agent) = self.agents.get_mut(&agent_name) {
+                // Rate limit check
                 if let Some(ref mut tracker) = agent.rate_limit_tracker {
                     tracker.check(name)?;
-                    self.emit(format!(
+                    trace_msgs.push(format!(
                         "[Rate Limit Check] Agent '{}' call to '{}' — within limits",
                         agent_name, name
                     ));
                 }
-            }
-        }
 
-        // M27: BUDGET ENFORCEMENT (Financial Physics!)
-        if let Some(cost_param_name) = &cost_param {
-            if let Some(agent_name) = &self.current_agent.clone() {
-                // Find the cost value from the evaluated args
-                let cost_idx = tool_params
-                    .iter()
-                    .position(|p| p == cost_param_name);
-
-                if let Some(idx) = cost_idx {
-                    if idx < evaluated_args.len() {
-                        if let Value::Number(cost) = &evaluated_args[idx] {
+                // Budget check (only when tool has a cost parameter)
+                if let Some(ref cost_param_name) = cost_param {
+                    let cost_idx = tool_params.iter().position(|p| p == cost_param_name);
+                    if let Some(idx) = cost_idx {
+                        if let Some(Value::Number(cost)) = evaluated_args.get(idx) {
                             let cost_val = *cost;
-                            if let Some(agent) = self.agents.get_mut(agent_name) {
-                                if let Some(ref mut budget) = agent.budget_tracker {
-                                    budget.check_and_record(cost_val)?;
-                                    self.emit(format!(
-                                        "[Budget Check] Agent '{}' spending {} — within budget",
-                                        agent_name, cost_val
-                                    ));
-                                }
+                            if let Some(ref mut budget) = agent.budget_tracker {
+                                budget.check_and_record(cost_val)?;
+                                trace_msgs.push(format!(
+                                    "[Budget Check] Agent '{}' spending {} — within budget",
+                                    agent_name, cost_val
+                                ));
                             }
                         }
                     }
                 }
             }
+        }
+        for msg in trace_msgs {
+            self.emit(msg);
         }
 
         // Day 4: Execute in sandbox
@@ -1243,10 +1217,9 @@ impl Evaluator {
             "[Tool Registered] {} with {} params{}",
             name,
             param_count,
-            if cost_param.is_some() {
-                format!(" (cost param: {:?})", cost_param.unwrap())
-            } else {
-                String::new()
+            match &cost_param {
+                Some(cp) => format!(" (cost param: {:?})", cp),
+                None => String::new(),
             }
         ));
         Ok(())
