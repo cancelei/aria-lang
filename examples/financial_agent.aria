@@ -1,0 +1,63 @@
+// ============================================================================
+// Financial Agent with Guardrails — "Financial Physics" in Aria-Lang
+// ============================================================================
+// Inspired by ai-agent-guardrails: spending limits, dedup, rate limiting,
+// tiered approval, identity verification — all enforced by the RUNTIME,
+// not by prompts. An agent physically cannot overspend or double-transact.
+// ============================================================================
+
+// Tools with cost annotations — the runtime tracks spending automatically
+tool transfer(to: string, amount: number) {
+    permission: "financial.send",
+    timeout: 30,
+    cost: amount
+}
+
+tool buy(token: string, amount: number) {
+    permission: "financial.trade",
+    cost: amount
+}
+
+// Agent with full financial guardrails
+agent TradingBot {
+    allow buy, transfer
+
+    // Spending limits enforced by the runtime — cannot be bypassed
+    budget {
+        per_action: 10000,
+        hourly: 25000,
+        daily: 50000
+    }
+
+    // Rate limits prevent runaway agents from spamming operations
+    rate_limit {
+        global: 20,
+        buy: 5,
+        transfer: 2
+    }
+
+    task execute_trade(token: string, amount: number) {
+        think { "Evaluating trade for the token" }
+
+        // Dedup prevents duplicate operations within TTL window
+        dedup "trade-op" ttl 120 {
+            // Tiered gate: auto-approve small, require approval medium, deny large
+            gate "Execute trade?" {
+                when $amount < 100 -> auto_approve
+                when $amount < 5000 -> require_approval
+                when $amount >= 5000 -> deny
+            } {
+                buy(token, amount)
+            }
+        }
+    }
+
+    task send_funds(from: string, to: string, amount: number) {
+        // Identity verification — runtime halts until identity confirmed
+        verify_identity from {
+            dedup "send-op" ttl 120 {
+                transfer(to, amount)
+            }
+        }
+    }
+}

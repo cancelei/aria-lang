@@ -78,6 +78,7 @@ mod tests {
                 vec!["command".to_string()],
                 Some("system.execute".to_string()),
                 Some(30.0),
+                None,
             )
             .unwrap();
         assert!(
@@ -97,6 +98,8 @@ mod tests {
                 vec!["echo".to_string()],
                 vec![],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
         assert!(
@@ -116,6 +119,8 @@ mod tests {
                 vec!["echo".to_string()],
                 vec![],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
         evaluator
@@ -162,6 +167,8 @@ mod tests {
                     body: vec![Statement::Print(Expr::String("hi".to_string()))],
                 }],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
 
@@ -216,6 +223,8 @@ mod tests {
                     body: vec![Statement::Print(Expr::String("level".to_string()))],
                 }],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
 
@@ -338,6 +347,8 @@ mod mcp_tests {
                     allow_list: vec![], // No tools allowed!
                     tasks: vec![],
                     body: vec![],
+                    budget: None,
+                    rate_limit: None,
                 },
             ],
         };
@@ -818,12 +829,15 @@ mod integration_tests {
                     params: vec!["code".to_string()],
                     permission: Some("code.read".to_string()),
                     timeout: Some(30.0),
+                    cost_param: None,
                 },
                 Statement::AgentDef {
                     name: "CodeAnalyzer".to_string(),
                     allow_list: vec!["analyze".to_string(), "github_search".to_string()],
                     tasks: vec![],
                     body: vec![],
+                    budget: None,
+                    rate_limit: None,
                 },
                 // M22: Pipeline
                 Statement::PipelineDef {
@@ -932,6 +946,7 @@ mod permission_tests {
                 vec!["path".to_string()],
                 Some("io.read".to_string()),
                 None,
+                None,
             )
             .unwrap();
 
@@ -942,6 +957,8 @@ mod permission_tests {
                 vec!["write_file".to_string()],
                 vec![],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
 
@@ -972,6 +989,7 @@ mod permission_tests {
                 vec![],
                 Some("io.write".to_string()),
                 Some(5.0),
+                None,
             )
             .unwrap();
         evaluator
@@ -980,6 +998,8 @@ mod permission_tests {
                 vec!["echo".to_string()],
                 vec![],
                 vec![],
+                None,
+                None,
             )
             .unwrap();
         evaluator
@@ -1001,6 +1021,7 @@ mod permission_tests {
                 vec![],
                 Some("system.execute".to_string()),
                 Some(5.0),
+                None,
             )
             .unwrap();
 
@@ -1192,6 +1213,8 @@ mod mcp_runtime_tests {
                     allow_list: vec!["code_search".to_string()],
                     tasks: vec![],
                     body: vec![],
+                    budget: None,
+                    rate_limit: None,
                 },
             ],
         };
@@ -2331,5 +2354,639 @@ mod runtime_integration_tests {
         evaluator.memory_forget("Cache", "search_result").unwrap();
         let mem = evaluator.memories.get("Cache").unwrap();
         assert!(mem.entries.is_empty());
+    }
+}
+
+// ========================================================================
+// M27: Financial Safety Primitives Tests
+// ========================================================================
+#[cfg(test)]
+mod financial_safety_tests {
+    use crate::ast::{BudgetDef, Expr, Program, RateLimitDef, Statement, TaskDef};
+    use crate::eval::{BudgetTracker, Evaluator, RateLimitTracker, Value};
+
+    // ---- Budget Tracker Unit Tests ----
+
+    #[test]
+    fn test_budget_tracker_within_limits() {
+        let budget_def = BudgetDef {
+            per_action: Some(1000.0),
+            hourly: Some(5000.0),
+            daily: Some(10000.0),
+        };
+        let mut tracker = BudgetTracker::new(&budget_def);
+
+        assert!(tracker.check_and_record(500.0).is_ok());
+        assert!(tracker.check_and_record(500.0).is_ok());
+    }
+
+    #[test]
+    fn test_budget_tracker_per_action_exceeded() {
+        let budget_def = BudgetDef {
+            per_action: Some(100.0),
+            hourly: None,
+            daily: None,
+        };
+        let mut tracker = BudgetTracker::new(&budget_def);
+
+        let result = tracker.check_and_record(150.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("per-action limit"));
+    }
+
+    #[test]
+    fn test_budget_tracker_hourly_exceeded() {
+        let budget_def = BudgetDef {
+            per_action: None,
+            hourly: Some(200.0),
+            daily: None,
+        };
+        let mut tracker = BudgetTracker::new(&budget_def);
+
+        assert!(tracker.check_and_record(100.0).is_ok());
+        assert!(tracker.check_and_record(50.0).is_ok());
+        let result = tracker.check_and_record(51.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Hourly spend"));
+    }
+
+    #[test]
+    fn test_budget_tracker_daily_exceeded() {
+        let budget_def = BudgetDef {
+            per_action: None,
+            hourly: None,
+            daily: Some(300.0),
+        };
+        let mut tracker = BudgetTracker::new(&budget_def);
+
+        assert!(tracker.check_and_record(100.0).is_ok());
+        assert!(tracker.check_and_record(100.0).is_ok());
+        assert!(tracker.check_and_record(100.0).is_ok());
+        let result = tracker.check_and_record(1.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Daily spend"));
+    }
+
+    // ---- Rate Limit Tracker Unit Tests ----
+
+    #[test]
+    fn test_rate_limit_within_limits() {
+        let rate_def = RateLimitDef {
+            global: Some(10),
+            per_tool: vec![("buy".to_string(), 3)],
+        };
+        let mut tracker = RateLimitTracker::new(&rate_def);
+
+        assert!(tracker.check("buy").is_ok());
+        assert!(tracker.check("buy").is_ok());
+        assert!(tracker.check("buy").is_ok());
+    }
+
+    #[test]
+    fn test_rate_limit_per_tool_exceeded() {
+        let rate_def = RateLimitDef {
+            global: Some(100),
+            per_tool: vec![("buy".to_string(), 2)],
+        };
+        let mut tracker = RateLimitTracker::new(&rate_def);
+
+        assert!(tracker.check("buy").is_ok());
+        assert!(tracker.check("buy").is_ok());
+        let result = tracker.check("buy");
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Rate Limited"));
+        assert!(err_msg.contains("buy"));
+    }
+
+    #[test]
+    fn test_rate_limit_global_exceeded() {
+        let rate_def = RateLimitDef {
+            global: Some(3),
+            per_tool: vec![],
+        };
+        let mut tracker = RateLimitTracker::new(&rate_def);
+
+        assert!(tracker.check("a").is_ok());
+        assert!(tracker.check("b").is_ok());
+        assert!(tracker.check("c").is_ok());
+        let result = tracker.check("d");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Global rate limit"));
+    }
+
+    // ---- Dedup Tests ----
+
+    #[test]
+    fn test_dedup_blocks_duplicate() {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![
+                // First dedup call — should execute
+                Statement::Dedup {
+                    key: Expr::String("payment-123".to_string()),
+                    ttl_seconds: Some(120.0),
+                    body: vec![Statement::Print(Expr::String("executed".to_string()))],
+                },
+                // Second dedup call with same key — should be blocked
+                Statement::Dedup {
+                    key: Expr::String("payment-123".to_string()),
+                    ttl_seconds: Some(120.0),
+                    body: vec![Statement::Print(Expr::String("should-not-execute".to_string()))],
+                },
+            ],
+        };
+        evaluator.eval_program(program);
+
+        // First execution should succeed
+        assert!(evaluator.output.iter().any(|s| s == "executed"));
+        // Second should be blocked
+        assert!(evaluator.output.iter().any(|s| s.contains("[Dedup Blocked]")));
+        // Body should NOT have run the second time
+        assert!(!evaluator.output.iter().any(|s| s == "should-not-execute"));
+    }
+
+    #[test]
+    fn test_dedup_allows_different_keys() {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![
+                Statement::Dedup {
+                    key: Expr::String("payment-123".to_string()),
+                    ttl_seconds: Some(120.0),
+                    body: vec![Statement::Print(Expr::String("first".to_string()))],
+                },
+                Statement::Dedup {
+                    key: Expr::String("payment-456".to_string()),
+                    ttl_seconds: Some(120.0),
+                    body: vec![Statement::Print(Expr::String("second".to_string()))],
+                },
+            ],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.output.iter().any(|s| s == "first"));
+        assert!(evaluator.output.iter().any(|s| s == "second"));
+    }
+
+    #[test]
+    fn test_dedup_default_ttl() {
+        let mut evaluator = Evaluator::new();
+        let program = Program {
+            statements: vec![Statement::Dedup {
+                key: Expr::String("op-1".to_string()),
+                ttl_seconds: None, // Should default to 120s
+                body: vec![Statement::Print(Expr::String("ok".to_string()))],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.output.iter().any(|s| s.contains("[Dedup Allowed]")));
+        assert!(evaluator.output.iter().any(|s| s.contains("TTL: 120s")));
+    }
+
+    // ---- Tiered Gate Tests ----
+
+    #[test]
+    fn test_tiered_gate_auto_approve() {
+        let mut evaluator = Evaluator::new();
+        // Set up a variable for the condition
+        evaluator.variables.insert("$amount".to_string(), Value::Number(50.0));
+
+        let program = Program {
+            statements: vec![Statement::GateTiered {
+                prompt: Expr::String("Approve payment?".to_string()),
+                tiers: vec![
+                    crate::ast::GateTier {
+                        condition: Expr::Call {
+                            name: "__cmp_lt".to_string(),
+                            args: vec![Expr::Var("$amount".to_string()), Expr::Number(100.0)],
+                        },
+                        action: crate::ast::GateAction::AutoApprove,
+                    },
+                ],
+                body: vec![Statement::Print(Expr::String("payment sent".to_string()))],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.output.iter().any(|s| s.contains("[Gate Auto-Approved]")));
+        assert!(evaluator.output.iter().any(|s| s == "payment sent"));
+    }
+
+    #[test]
+    fn test_tiered_gate_deny() {
+        let mut evaluator = Evaluator::new();
+        evaluator.variables.insert("$amount".to_string(), Value::Number(50000.0));
+
+        let program = Program {
+            statements: vec![Statement::GateTiered {
+                prompt: Expr::String("Approve payment?".to_string()),
+                tiers: vec![
+                    crate::ast::GateTier {
+                        condition: Expr::Call {
+                            name: "__cmp_lt".to_string(),
+                            args: vec![Expr::Var("$amount".to_string()), Expr::Number(100.0)],
+                        },
+                        action: crate::ast::GateAction::AutoApprove,
+                    },
+                    crate::ast::GateTier {
+                        condition: Expr::Call {
+                            name: "__cmp_gte".to_string(),
+                            args: vec![Expr::Var("$amount".to_string()), Expr::Number(10000.0)],
+                        },
+                        action: crate::ast::GateAction::Deny,
+                    },
+                ],
+                body: vec![Statement::Print(Expr::String("should-not-run".to_string()))],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.output.iter().any(|s| s.contains("[Gate Denied]")));
+        assert!(!evaluator.output.iter().any(|s| s == "should-not-run"));
+    }
+
+    // ---- Verify Identity Tests ----
+
+    #[test]
+    fn test_verify_identity_already_verified() {
+        let mut evaluator = Evaluator::new();
+        // Pre-verify the identity
+        evaluator.verified_identities.insert("alice".to_string());
+
+        let program = Program {
+            statements: vec![Statement::VerifyIdentity {
+                identity_expr: Expr::String("alice".to_string()),
+                body: vec![Statement::Print(Expr::String("authorized action".to_string()))],
+            }],
+        };
+        evaluator.eval_program(program);
+
+        assert!(evaluator.output.iter().any(|s| s.contains("previously verified")));
+        assert!(evaluator.output.iter().any(|s| s == "authorized action"));
+    }
+
+    // ---- Budget Integration with Agent Tests ----
+
+    #[test]
+    fn test_agent_with_budget_definition() {
+        let mut evaluator = Evaluator::new();
+
+        // Register tool with cost param
+        evaluator
+            .eval_tool_def(
+                "transfer".to_string(),
+                vec!["to".to_string(), "amount".to_string()],
+                Some("financial.send".to_string()),
+                None,
+                Some("amount".to_string()),
+            )
+            .unwrap();
+
+        // Register agent with budget
+        evaluator
+            .eval_agent_def(
+                "PayBot".to_string(),
+                vec!["transfer".to_string()],
+                vec![],
+                vec![],
+                Some(BudgetDef {
+                    per_action: Some(100.0),
+                    hourly: Some(500.0),
+                    daily: Some(1000.0),
+                }),
+                None,
+            )
+            .unwrap();
+
+        assert!(evaluator.output.iter().any(|s| s.contains("has budget")));
+    }
+
+    #[test]
+    fn test_agent_budget_enforcement() {
+        let mut evaluator = Evaluator::new();
+
+        // Register tool with cost param
+        evaluator
+            .eval_tool_def(
+                "echo".to_string(),
+                vec!["amount".to_string()],
+                Some("financial".to_string()),
+                Some(5.0),
+                Some("amount".to_string()),
+            )
+            .unwrap();
+
+        // Register agent with budget (per_action limit of 100)
+        evaluator
+            .eval_agent_def(
+                "BudgetAgent".to_string(),
+                vec!["echo".to_string()],
+                vec![],
+                vec![],
+                Some(BudgetDef {
+                    per_action: Some(100.0),
+                    hourly: None,
+                    daily: None,
+                }),
+                None,
+            )
+            .unwrap();
+
+        // Spawn and set context
+        evaluator
+            .eval_spawn("$ba".to_string(), "BudgetAgent".to_string())
+            .unwrap();
+        evaluator.current_agent = Some("$ba".to_string());
+
+        // Call within budget — should succeed
+        let result = evaluator.eval_call("echo", vec![Expr::Number(50.0)]);
+        assert!(result.is_ok());
+        assert!(evaluator.output.iter().any(|s| s.contains("[Budget Check]")));
+
+        // Call exceeding per-action limit — should fail
+        let result = evaluator.eval_call("echo", vec![Expr::Number(150.0)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Budget Exceeded"));
+    }
+
+    #[test]
+    fn test_agent_rate_limit_enforcement() {
+        let mut evaluator = Evaluator::new();
+
+        evaluator
+            .eval_tool_def(
+                "echo".to_string(),
+                vec![],
+                Some("io".to_string()),
+                Some(5.0),
+                None,
+            )
+            .unwrap();
+
+        // Agent with rate limit of 2 per minute for echo
+        evaluator
+            .eval_agent_def(
+                "RateLimitedAgent".to_string(),
+                vec!["echo".to_string()],
+                vec![],
+                vec![],
+                None,
+                Some(RateLimitDef {
+                    global: None,
+                    per_tool: vec![("echo".to_string(), 2)],
+                }),
+            )
+            .unwrap();
+
+        evaluator
+            .eval_spawn("$rla".to_string(), "RateLimitedAgent".to_string())
+            .unwrap();
+        evaluator.current_agent = Some("$rla".to_string());
+
+        // First two calls should succeed
+        assert!(evaluator.eval_call("echo", vec![]).is_ok());
+        assert!(evaluator.eval_call("echo", vec![]).is_ok());
+
+        // Third call should be rate limited
+        let result = evaluator.eval_call("echo", vec![]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Rate Limited"));
+    }
+
+    #[test]
+    fn test_agent_with_budget_and_rate_limit() {
+        let mut evaluator = Evaluator::new();
+
+        evaluator
+            .eval_agent_def(
+                "FullGuardrailsAgent".to_string(),
+                vec!["transfer".to_string()],
+                vec![],
+                vec![],
+                Some(BudgetDef {
+                    per_action: Some(10000.0),
+                    hourly: Some(50000.0),
+                    daily: Some(100000.0),
+                }),
+                Some(RateLimitDef {
+                    global: Some(20),
+                    per_tool: vec![("transfer".to_string(), 5)],
+                }),
+            )
+            .unwrap();
+
+        let output = evaluator.output.join(" ");
+        assert!(output.contains("has budget"));
+        assert!(output.contains("has rate_limit"));
+    }
+
+    // ---- Parser Integration Tests ----
+
+    #[test]
+    fn test_parse_tool_with_cost() {
+        use crate::parser::Parser;
+
+        let input = r#"tool transfer(to: string, amount: number) {
+            permission: "financial.send",
+            timeout: 30,
+            cost: amount
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::ToolDef {
+            name,
+            params,
+            cost_param,
+            ..
+        } = &program.statements[0]
+        {
+            assert_eq!(name, "transfer");
+            assert_eq!(params, &vec!["to".to_string(), "amount".to_string()]);
+            assert_eq!(cost_param, &Some("amount".to_string()));
+        } else {
+            panic!("Expected ToolDef");
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_with_budget() {
+        use crate::parser::Parser;
+
+        let input = r#"agent Trader {
+            allow buy, sell
+
+            budget {
+                per_action: 10000,
+                hourly: 25000,
+                daily: 50000
+            }
+
+            task trade() {
+                print "trading"
+            }
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::AgentDef {
+            name,
+            allow_list,
+            budget,
+            ..
+        } = &program.statements[0]
+        {
+            assert_eq!(name, "Trader");
+            assert_eq!(allow_list, &vec!["buy".to_string(), "sell".to_string()]);
+            let b = budget.as_ref().unwrap();
+            assert_eq!(b.per_action, Some(10000.0));
+            assert_eq!(b.hourly, Some(25000.0));
+            assert_eq!(b.daily, Some(50000.0));
+        } else {
+            panic!("Expected AgentDef");
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_with_rate_limit() {
+        use crate::parser::Parser;
+
+        let input = r#"agent Bot {
+            allow buy
+
+            rate_limit {
+                global: 10,
+                buy: 3
+            }
+
+            task do_buy() {
+                print "buying"
+            }
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::AgentDef {
+            name,
+            rate_limit,
+            ..
+        } = &program.statements[0]
+        {
+            assert_eq!(name, "Bot");
+            let rl = rate_limit.as_ref().unwrap();
+            assert_eq!(rl.global, Some(10));
+            assert_eq!(rl.per_tool, vec![("buy".to_string(), 3)]);
+        } else {
+            panic!("Expected AgentDef");
+        }
+    }
+
+    #[test]
+    fn test_parse_dedup() {
+        use crate::parser::Parser;
+
+        let input = r#"dedup "payment-123" ttl 120 {
+            print "executing"
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::Dedup {
+            key,
+            ttl_seconds,
+            body,
+        } = &program.statements[0]
+        {
+            assert_eq!(key, &Expr::String("payment-123".to_string()));
+            assert_eq!(ttl_seconds, &Some(120.0));
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected Dedup");
+        }
+    }
+
+    #[test]
+    fn test_parse_verify_identity() {
+        use crate::parser::Parser;
+
+        let input = r#"verify_identity "alice" {
+            print "authorized"
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::VerifyIdentity {
+            identity_expr,
+            body,
+        } = &program.statements[0]
+        {
+            assert_eq!(identity_expr, &Expr::String("alice".to_string()));
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected VerifyIdentity");
+        }
+    }
+
+    #[test]
+    fn test_parse_tiered_gate() {
+        use crate::parser::Parser;
+
+        let input = r#"gate "Approve?" {
+            when $amount < 100 -> auto_approve
+            when $amount >= 10000 -> deny
+        } {
+            print "approved"
+        }"#;
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        if let Statement::GateTiered {
+            prompt,
+            tiers,
+            body,
+        } = &program.statements[0]
+        {
+            assert_eq!(prompt, &Expr::String("Approve?".to_string()));
+            assert_eq!(tiers.len(), 2);
+            assert_eq!(tiers[0].action, crate::ast::GateAction::AutoApprove);
+            assert_eq!(tiers[1].action, crate::ast::GateAction::Deny);
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected GateTiered");
+        }
+    }
+
+    // ---- Lexer Token Tests ----
+
+    #[test]
+    fn test_m27_financial_tokens() {
+        use crate::lexer::Token;
+        use logos::Logos;
+
+        let input = "budget per_action hourly daily dedup ttl when auto_approve require_approval deny rate_limit per_minute verify_identity cost <";
+        let mut lex = Token::lexer(input);
+        assert_eq!(lex.next(), Some(Ok(Token::Budget)));
+        assert_eq!(lex.next(), Some(Ok(Token::PerAction)));
+        assert_eq!(lex.next(), Some(Ok(Token::Hourly)));
+        assert_eq!(lex.next(), Some(Ok(Token::Daily)));
+        assert_eq!(lex.next(), Some(Ok(Token::Dedup)));
+        assert_eq!(lex.next(), Some(Ok(Token::Ttl)));
+        assert_eq!(lex.next(), Some(Ok(Token::When)));
+        assert_eq!(lex.next(), Some(Ok(Token::AutoApprove)));
+        assert_eq!(lex.next(), Some(Ok(Token::RequireApproval)));
+        assert_eq!(lex.next(), Some(Ok(Token::Deny)));
+        assert_eq!(lex.next(), Some(Ok(Token::RateLimit)));
+        assert_eq!(lex.next(), Some(Ok(Token::PerMinute)));
+        assert_eq!(lex.next(), Some(Ok(Token::VerifyIdentity)));
+        assert_eq!(lex.next(), Some(Ok(Token::Cost)));
+        assert_eq!(lex.next(), Some(Ok(Token::LessThan)));
     }
 }

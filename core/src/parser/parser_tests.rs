@@ -46,6 +46,7 @@ mod tests {
             params,
             permission,
             timeout,
+            cost_param: _,
         } = &program.statements[0]
         {
             assert_eq!(name, "shell");
@@ -70,6 +71,7 @@ mod tests {
             params,
             permission,
             timeout,
+            cost_param: _,
         } = &program.statements[0]
         {
             assert_eq!(name, "fetch");
@@ -137,6 +139,8 @@ mod tests {
             allow_list,
             tasks,
             body: _,
+            budget: _,
+            rate_limit: _,
         } = &program.statements[0]
         {
             assert_eq!(name, "DevOpsAssistant");
@@ -164,6 +168,8 @@ mod tests {
             allow_list,
             tasks,
             body: _,
+            budget: _,
+            rate_limit: _,
         } = &program.statements[0]
         {
             assert_eq!(name, "DevOpsAssistant");
@@ -192,6 +198,8 @@ mod tests {
             allow_list: _,
             tasks,
             body: _,
+            budget: _,
+            rate_limit: _,
         } = &program.statements[0]
         {
             assert_eq!(name, "Worker");

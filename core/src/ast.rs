@@ -38,12 +38,15 @@ pub enum Statement {
         params: Vec<String>,
         permission: Option<String>,
         timeout: Option<f64>,
+        cost_param: Option<String>,
     },
     AgentDef {
         name: String,
         allow_list: Vec<String>,
         tasks: Vec<TaskDef>,
         body: Vec<Statement>,
+        budget: Option<BudgetDef>,
+        rate_limit: Option<RateLimitDef>,
     },
     TaskDef(TaskDef),
     Spawn {
@@ -141,6 +144,33 @@ pub enum Statement {
         embedding_model: Option<String>,
         operations: Vec<String>,
     },
+
+    // ========================================================================
+    // M27: Financial Safety Primitives (Guardrails-Inspired)
+    // ========================================================================
+
+    /// Deduplication guard: prevents duplicate operations within a TTL window
+    /// dedup "send-{to}-{amount}" ttl 120 { transfer(to, amount) }
+    Dedup {
+        key: Expr,
+        ttl_seconds: Option<f64>,
+        body: Vec<Statement>,
+    },
+
+    /// Tiered gate: auto-approve, require approval, or deny based on conditions
+    /// gate "Approve?" { when amount < 100 -> auto_approve ... } { body }
+    GateTiered {
+        prompt: Expr,
+        tiers: Vec<GateTier>,
+        body: Vec<Statement>,
+    },
+
+    /// Identity verification: runtime-enforced identity check before sensitive operations
+    /// verify_identity $user { transfer(to, amount) }
+    VerifyIdentity {
+        identity_expr: Expr,
+        body: Vec<Statement>,
+    },
 }
 
 // ============================================================================
@@ -185,6 +215,33 @@ pub struct WorkflowState {
 pub struct WorkflowTransition {
     pub event: String,
     pub target_state: String,
+}
+
+// M27: Financial Safety supporting types
+#[derive(Debug, Clone, PartialEq)]
+pub struct BudgetDef {
+    pub per_action: Option<f64>,
+    pub hourly: Option<f64>,
+    pub daily: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RateLimitDef {
+    pub global: Option<u32>,          // operations per minute (global)
+    pub per_tool: Vec<(String, u32)>, // (tool_name, ops_per_minute)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GateTier {
+    pub condition: Expr,
+    pub action: GateAction,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GateAction {
+    AutoApprove,
+    RequireApproval,
+    Deny,
 }
 
 #[derive(Debug)]

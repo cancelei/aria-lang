@@ -1,6 +1,6 @@
 use crate::ast::{
-    ConcurrentBranch, Expr, HandoffRoute, PipelineStage, Program, Statement, WorkflowState,
-    WorkflowTransition,
+    BudgetDef, ConcurrentBranch, Expr, GateAction, GateTier, HandoffRoute, PipelineStage, Program,
+    RateLimitDef, Statement, WorkflowState, WorkflowTransition,
 };
 use crate::lexer::Token;
 use logos::{Lexer, Logos};
@@ -79,6 +79,12 @@ impl<'a> Parser<'a> {
                 self.advance();
                 let prompt = self.parse_expr()?;
                 self.expect(Token::LBrace)?;
+
+                // M27: Check if this is a tiered gate (starts with 'when')
+                if let Some(Ok(Token::When)) = &self.current {
+                    return self.parse_tiered_gate(prompt);
+                }
+
                 let mut body = Vec::new();
                 while let Some(Ok(token)) = &self.current {
                     if *token == Token::RBrace {
@@ -106,6 +112,8 @@ impl<'a> Parser<'a> {
                 let mut allow_list = Vec::new();
                 let mut tasks = Vec::new();
                 let mut body = Vec::new();
+                let mut budget = None;
+                let mut rate_limit = None;
 
                 while let Some(Ok(token)) = &self.current {
                     if *token == Token::RBrace {
@@ -115,15 +123,32 @@ impl<'a> Parser<'a> {
                     match token {
                         Token::Allow => {
                             self.advance();
+                            // M27: Support comma-separated allow lists
                             if let Some(Ok(Token::Ident(tool_name))) = &self.current {
                                 allow_list.push(tool_name.clone());
                                 self.advance();
+                                // Parse additional comma-separated tool names
+                                while let Some(Ok(Token::Comma)) = &self.current {
+                                    self.advance();
+                                    if let Some(Ok(Token::Ident(tool_name))) = &self.current {
+                                        allow_list.push(tool_name.clone());
+                                        self.advance();
+                                    }
+                                }
                             } else {
                                 return Err("Expected tool name after 'allow'".to_string());
                             }
                         }
                         Token::Task => {
                             tasks.push(self.parse_task_def()?);
+                        }
+                        // M27: Budget block inside agent
+                        Token::Budget => {
+                            budget = Some(self.parse_budget_def()?);
+                        }
+                        // M27: Rate limit block inside agent
+                        Token::RateLimit => {
+                            rate_limit = Some(self.parse_rate_limit_def()?);
                         }
                         _ => {
                             body.push(self.parse_statement()?);
@@ -134,12 +159,14 @@ impl<'a> Parser<'a> {
                 self.expect(Token::RBrace)?;
 
                 // If we have allow_list or tasks, return AgentDef, otherwise AgentBlock
-                if !allow_list.is_empty() || !tasks.is_empty() {
+                if !allow_list.is_empty() || !tasks.is_empty() || budget.is_some() || rate_limit.is_some() {
                     Ok(Statement::AgentDef {
                         name,
                         allow_list,
                         tasks,
                         body,
+                        budget,
+                        rate_limit,
                     })
                 } else {
                     Ok(Statement::AgentBlock { name, body })
@@ -176,6 +203,10 @@ impl<'a> Parser<'a> {
 
             // M26: Memory definitions
             Some(Ok(Token::Memory)) => self.parse_memory(),
+
+            // M27: Financial Safety Primitives
+            Some(Ok(Token::Dedup)) => self.parse_dedup(),
+            Some(Ok(Token::VerifyIdentity)) => self.parse_verify_identity(),
 
             _ => Err(format!("Unexpected token in statement: {:?}", self.current)),
         }
@@ -288,10 +319,11 @@ impl<'a> Parser<'a> {
         }
         self.expect(Token::RParen)?;
 
-        // Parse body with permission and timeout
+        // Parse body with permission, timeout, and cost
         self.expect(Token::LBrace)?;
         let mut permission = None;
         let mut timeout = None;
+        let mut cost_param = None;
 
         while let Some(Ok(token)) = &self.current {
             if *token == Token::RBrace {
@@ -323,6 +355,19 @@ impl<'a> Parser<'a> {
                         self.advance();
                     }
                 }
+                // M27: Cost annotation — which parameter represents the monetary cost
+                Token::Cost => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    if let Some(Ok(Token::Ident(param_name))) = &self.current {
+                        cost_param = Some(param_name.clone());
+                        self.advance();
+                    }
+                    // Skip optional comma
+                    if let Some(Ok(Token::Comma)) = &self.current {
+                        self.advance();
+                    }
+                }
                 _ => {
                     return Err(format!("Unexpected token in tool body: {:?}", token));
                 }
@@ -336,6 +381,7 @@ impl<'a> Parser<'a> {
             params,
             permission,
             timeout,
+            cost_param,
         })
     }
 
@@ -1278,6 +1324,265 @@ impl<'a> Parser<'a> {
         self.expect(Token::RBrace)?;
 
         Ok(Statement::Main { body })
+    }
+
+    // ========================================================================
+    // M27: Financial Safety Primitives Parsing
+    // ========================================================================
+
+    /// Parse budget block inside agent definition:
+    /// budget { per_action: 10000, hourly: 25000, daily: 50000 }
+    fn parse_budget_def(&mut self) -> Result<BudgetDef, String> {
+        self.advance(); // consume 'budget'
+        self.expect(Token::LBrace)?;
+
+        let mut per_action = None;
+        let mut hourly = None;
+        let mut daily = None;
+
+        while let Some(Ok(token)) = &self.current {
+            if *token == Token::RBrace {
+                break;
+            }
+
+            match token {
+                Token::PerAction => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    if let Some(Ok(Token::Number(n))) = &self.current {
+                        per_action = Some(*n);
+                        self.advance();
+                    }
+                    if let Some(Ok(Token::Comma)) = &self.current {
+                        self.advance();
+                    }
+                }
+                Token::Hourly => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    if let Some(Ok(Token::Number(n))) = &self.current {
+                        hourly = Some(*n);
+                        self.advance();
+                    }
+                    if let Some(Ok(Token::Comma)) = &self.current {
+                        self.advance();
+                    }
+                }
+                Token::Daily => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    if let Some(Ok(Token::Number(n))) = &self.current {
+                        daily = Some(*n);
+                        self.advance();
+                    }
+                    if let Some(Ok(Token::Comma)) = &self.current {
+                        self.advance();
+                    }
+                }
+                _ => {
+                    return Err(format!(
+                        "Unexpected token in budget block: {:?}",
+                        token
+                    ));
+                }
+            }
+        }
+
+        self.expect(Token::RBrace)?;
+        Ok(BudgetDef {
+            per_action,
+            hourly,
+            daily,
+        })
+    }
+
+    /// Parse rate_limit block inside agent definition:
+    /// rate_limit { global: 10, buy: 3, sell: 3 }
+    /// Values are operations per minute.
+    fn parse_rate_limit_def(&mut self) -> Result<RateLimitDef, String> {
+        self.advance(); // consume 'rate_limit'
+        self.expect(Token::LBrace)?;
+
+        let mut global = None;
+        let mut per_tool = Vec::new();
+
+        while let Some(Ok(token)) = &self.current {
+            if *token == Token::RBrace {
+                break;
+            }
+
+            // Parse identifier: value pairs
+            // "global: 10" or "buy: 3"
+            if let Token::Ident(name) = token {
+                let tool_name = name.clone();
+                self.advance();
+                self.expect(Token::Colon)?;
+                if let Some(Ok(Token::Number(n))) = &self.current {
+                    let limit = *n as u32;
+                    self.advance();
+                    // Skip optional .per_minute suffix
+                    if let Some(Ok(Token::Dot)) = &self.current {
+                        self.advance();
+                        if let Some(Ok(Token::PerMinute)) = &self.current {
+                            self.advance();
+                        }
+                    }
+                    if tool_name == "global" {
+                        global = Some(limit);
+                    } else {
+                        per_tool.push((tool_name, limit));
+                    }
+                }
+                if let Some(Ok(Token::Comma)) = &self.current {
+                    self.advance();
+                }
+            } else {
+                return Err(format!(
+                    "Unexpected token in rate_limit block: {:?}",
+                    token
+                ));
+            }
+        }
+
+        self.expect(Token::RBrace)?;
+        Ok(RateLimitDef { global, per_tool })
+    }
+
+    /// Parse dedup statement:
+    /// dedup "key-string" ttl 120 { body... }
+    fn parse_dedup(&mut self) -> Result<Statement, String> {
+        self.advance(); // consume 'dedup'
+
+        let key = self.parse_expr()?;
+
+        // Optional ttl
+        let mut ttl_seconds = None;
+        if let Some(Ok(Token::Ttl)) = &self.current {
+            self.advance();
+            if let Some(Ok(Token::Number(n))) = &self.current {
+                ttl_seconds = Some(*n);
+                self.advance();
+            } else {
+                return Err("Expected number after 'ttl'".to_string());
+            }
+        }
+
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while let Some(Ok(token)) = &self.current {
+            if *token == Token::RBrace {
+                break;
+            }
+            body.push(self.parse_statement()?);
+        }
+        self.expect(Token::RBrace)?;
+
+        Ok(Statement::Dedup {
+            key,
+            ttl_seconds,
+            body,
+        })
+    }
+
+    /// Parse tiered gate (called after consuming 'gate', prompt expr, and '{'):
+    /// gate "prompt" {
+    ///     when $amount < 100 -> auto_approve
+    ///     when $amount < 10000 -> require_approval
+    ///     when $amount >= 10000 -> deny
+    /// } { body... }
+    fn parse_tiered_gate(&mut self, prompt: Expr) -> Result<Statement, String> {
+        let mut tiers = Vec::new();
+
+        while let Some(Ok(Token::When)) = &self.current {
+            self.advance(); // consume 'when'
+
+            // Parse the condition: <expr> <op> <expr>
+            let left = self.parse_expr()?;
+
+            // Parse comparison operator
+            let op = match &self.current {
+                Some(Ok(Token::LessThan)) => {
+                    self.advance();
+                    "lt"
+                }
+                Some(Ok(Token::GreaterEq)) => {
+                    self.advance();
+                    "gte"
+                }
+                _ => return Err(format!("Expected '<' or '>=' in gate tier condition, found {:?}", self.current)),
+            };
+
+            let right = self.parse_expr()?;
+
+            // Build condition as a Call expression for the evaluator
+            let condition = Expr::Call {
+                name: format!("__cmp_{}", op),
+                args: vec![left, right],
+            };
+
+            self.expect(Token::Arrow)?;
+
+            // Parse action
+            let action = match &self.current {
+                Some(Ok(Token::AutoApprove)) => {
+                    self.advance();
+                    GateAction::AutoApprove
+                }
+                Some(Ok(Token::RequireApproval)) => {
+                    self.advance();
+                    GateAction::RequireApproval
+                }
+                Some(Ok(Token::Deny)) => {
+                    self.advance();
+                    GateAction::Deny
+                }
+                _ => return Err(format!("Expected 'auto_approve', 'require_approval', or 'deny' after '->', found {:?}", self.current)),
+            };
+
+            tiers.push(GateTier { condition, action });
+        }
+
+        self.expect(Token::RBrace)?; // close the tiers block
+
+        // Parse the body block
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while let Some(Ok(token)) = &self.current {
+            if *token == Token::RBrace {
+                break;
+            }
+            body.push(self.parse_statement()?);
+        }
+        self.expect(Token::RBrace)?;
+
+        Ok(Statement::GateTiered {
+            prompt,
+            tiers,
+            body,
+        })
+    }
+
+    /// Parse verify_identity statement:
+    /// verify_identity $user { body... }
+    fn parse_verify_identity(&mut self) -> Result<Statement, String> {
+        self.advance(); // consume 'verify_identity'
+
+        let identity_expr = self.parse_expr()?;
+
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while let Some(Ok(token)) = &self.current {
+            if *token == Token::RBrace {
+                break;
+            }
+            body.push(self.parse_statement()?);
+        }
+        self.expect(Token::RBrace)?;
+
+        Ok(Statement::VerifyIdentity {
+            identity_expr,
+            body,
+        })
     }
 }
 

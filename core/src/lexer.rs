@@ -102,6 +102,40 @@ pub enum Token {
     #[token("embedding")]
     Embedding,
 
+    // M27: Financial Safety keywords (Guardrails-Inspired)
+    #[token("budget")]
+    Budget,
+    #[token("per_action")]
+    PerAction,
+    #[token("hourly")]
+    Hourly,
+    #[token("daily")]
+    Daily,
+    #[token("dedup")]
+    Dedup,
+    #[token("ttl")]
+    Ttl,
+    #[token("when")]
+    When,
+    #[token("auto_approve")]
+    AutoApprove,
+    #[token("require_approval")]
+    RequireApproval,
+    #[token("deny")]
+    Deny,
+    #[token("rate_limit")]
+    RateLimit,
+    #[token("per_minute")]
+    PerMinute,
+    #[token("verify_identity")]
+    VerifyIdentity,
+    #[token("cost")]
+    Cost,
+
+    // Comparison operators for tiered gates
+    #[token("<")]
+    LessThan,
+
     // Operators
     #[token("=>")]
     FatArrow,

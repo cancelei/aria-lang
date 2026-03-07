@@ -1,9 +1,10 @@
-use crate::ast::{Expr, Program, Statement, TaskDef};
+use crate::ast::{BudgetDef, Expr, GateAction, Program, RateLimitDef, Statement, TaskDef};
 use crate::builtins::BuiltinRegistry;
 use crate::mcp_client;
 use crate::tool_executor;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::time::Instant;
 
 // Day 5: Runtime resource limits - The Immune System
 #[derive(Debug, Clone)]
@@ -30,6 +31,151 @@ pub struct ResourceTracker {
     pub depth: u32,
 }
 
+// M27: Budget tracking for financial safety
+#[derive(Debug, Clone)]
+pub struct BudgetTracker {
+    pub per_action_limit: Option<f64>,
+    pub hourly_limit: Option<f64>,
+    pub daily_limit: Option<f64>,
+    pub hourly_spent: f64,
+    pub daily_spent: f64,
+    pub last_hour_reset: Instant,
+    pub last_day_reset: Instant,
+}
+
+impl BudgetTracker {
+    pub fn new(budget_def: &BudgetDef) -> Self {
+        Self {
+            per_action_limit: budget_def.per_action,
+            hourly_limit: budget_def.hourly,
+            daily_limit: budget_def.daily,
+            hourly_spent: 0.0,
+            daily_spent: 0.0,
+            last_hour_reset: Instant::now(),
+            last_day_reset: Instant::now(),
+        }
+    }
+
+    /// Check if cost is within budget limits and record if so.
+    /// Returns Ok(()) if allowed, Err with reason if budget exceeded.
+    pub fn check_and_record(&mut self, cost: f64) -> Result<(), String> {
+        // Reset rolling windows
+        let now = Instant::now();
+        if now.duration_since(self.last_hour_reset).as_secs() >= 3600 {
+            self.hourly_spent = 0.0;
+            self.last_hour_reset = now;
+        }
+        if now.duration_since(self.last_day_reset).as_secs() >= 86400 {
+            self.daily_spent = 0.0;
+            self.last_day_reset = now;
+        }
+
+        // Check per-action limit
+        if let Some(limit) = self.per_action_limit {
+            if cost > limit {
+                return Err(format!(
+                    "[Budget Exceeded] Action cost {} exceeds per-action limit of {}",
+                    cost, limit
+                ));
+            }
+        }
+
+        // Check hourly limit
+        if let Some(limit) = self.hourly_limit {
+            if self.hourly_spent + cost > limit {
+                return Err(format!(
+                    "[Budget Exceeded] Hourly spend would be {} (limit: {})",
+                    self.hourly_spent + cost,
+                    limit
+                ));
+            }
+        }
+
+        // Check daily limit
+        if let Some(limit) = self.daily_limit {
+            if self.daily_spent + cost > limit {
+                return Err(format!(
+                    "[Budget Exceeded] Daily spend would be {} (limit: {})",
+                    self.daily_spent + cost,
+                    limit
+                ));
+            }
+        }
+
+        // Record the spend
+        self.hourly_spent += cost;
+        self.daily_spent += cost;
+        Ok(())
+    }
+}
+
+// M27: Rate limit tracking
+#[derive(Debug, Clone)]
+pub struct RateLimitTracker {
+    pub global_limit: Option<u32>,
+    pub per_tool_limits: HashMap<String, u32>,
+    pub global_calls: Vec<Instant>,
+    pub per_tool_calls: HashMap<String, Vec<Instant>>,
+}
+
+impl RateLimitTracker {
+    pub fn new(rate_limit_def: &RateLimitDef) -> Self {
+        let mut per_tool_limits = HashMap::new();
+        for (name, limit) in &rate_limit_def.per_tool {
+            per_tool_limits.insert(name.clone(), *limit);
+        }
+        Self {
+            global_limit: rate_limit_def.global,
+            per_tool_limits,
+            global_calls: Vec::new(),
+            per_tool_calls: HashMap::new(),
+        }
+    }
+
+    /// Check if a tool call is within rate limits. Returns Err if rate limited.
+    pub fn check(&mut self, tool_name: &str) -> Result<(), String> {
+        let now = Instant::now();
+        let one_minute_ago = now - std::time::Duration::from_secs(60);
+
+        // Clean up and check global limit
+        if let Some(limit) = self.global_limit {
+            self.global_calls.retain(|t| *t > one_minute_ago);
+            if self.global_calls.len() >= limit as usize {
+                return Err(format!(
+                    "[Rate Limited] Global rate limit exceeded ({} calls/minute, limit: {})",
+                    self.global_calls.len(),
+                    limit
+                ));
+            }
+        }
+
+        // Clean up and check per-tool limit
+        if let Some(&limit) = self.per_tool_limits.get(tool_name) {
+            let calls = self
+                .per_tool_calls
+                .entry(tool_name.to_string())
+                .or_default();
+            calls.retain(|t| *t > one_minute_ago);
+            if calls.len() >= limit as usize {
+                return Err(format!(
+                    "[Rate Limited] Tool '{}' rate limit exceeded ({} calls/minute, limit: {})",
+                    tool_name,
+                    calls.len(),
+                    limit
+                ));
+            }
+        }
+
+        // Record the call
+        self.global_calls.push(now);
+        self.per_tool_calls
+            .entry(tool_name.to_string())
+            .or_default()
+            .push(now);
+        Ok(())
+    }
+}
+
 // Day 3: Tool definition storage
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -38,6 +184,7 @@ pub struct Tool {
     pub params: Vec<String>,
     pub permission: Option<String>,
     pub timeout: Option<f64>,
+    pub cost_param: Option<String>,
 }
 
 // M21: MCP Tool definition
@@ -134,6 +281,9 @@ pub struct AgentDef {
     pub allow_list: Vec<String>,
     pub tasks: Vec<TaskDef>,
     pub body: Vec<Statement>,
+    // M27: Financial safety definitions
+    pub budget: Option<BudgetDef>,
+    pub rate_limit: Option<RateLimitDef>,
 }
 
 // Day 3: Agent instance (a running agent with scoped permissions)
@@ -144,6 +294,9 @@ pub struct AgentInstance {
     pub agent_def_name: String,
     pub allowed_tools: Vec<String>,
     pub variables: HashMap<String, Value>,
+    // M27: Financial safety trackers
+    pub budget_tracker: Option<BudgetTracker>,
+    pub rate_limit_tracker: Option<RateLimitTracker>,
 }
 
 pub struct Evaluator {
@@ -171,6 +324,9 @@ pub struct Evaluator {
     pub models: HashMap<String, ModelInstance>,
     // M26: Memories
     pub memories: HashMap<String, MemoryInstance>,
+    // M27: Financial safety state
+    pub dedup_cache: HashMap<String, Instant>,
+    pub verified_identities: HashSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -226,6 +382,9 @@ impl Evaluator {
             workflows: HashMap::new(),
             models: HashMap::new(),
             memories: HashMap::new(),
+            // M27: Financial safety state
+            dedup_cache: HashMap::new(),
+            verified_identities: HashSet::new(),
         }
     }
 
@@ -307,16 +466,19 @@ impl Evaluator {
                 params,
                 permission,
                 timeout,
+                cost_param,
             } => {
-                self.eval_tool_def(name, params, permission, timeout)?;
+                self.eval_tool_def(name, params, permission, timeout, cost_param)?;
             }
             Statement::AgentDef {
                 name,
                 allow_list,
                 tasks,
                 body,
+                budget,
+                rate_limit,
             } => {
-                self.eval_agent_def(name, allow_list, tasks, body)?;
+                self.eval_agent_def(name, allow_list, tasks, body, budget, rate_limit)?;
             }
             Statement::TaskDef(_) => {
                 // TODO: Implement task definitions
@@ -375,6 +537,7 @@ impl Evaluator {
                     params: vec![], // MCP tools have dynamic params
                     permission: permission.clone(),
                     timeout,
+                    cost_param: None,
                 };
                 self.tools.insert(name.clone(), tool);
                 self.emit(format!(
@@ -567,6 +730,149 @@ impl Evaluator {
                     name, store, embedding_model, operations
                 ));
             }
+
+            // ==============================================================
+            // M27: Financial Safety Primitives
+            // ==============================================================
+            Statement::Dedup {
+                key,
+                ttl_seconds,
+                body,
+            } => {
+                let key_val = self.eval_expr(key)?;
+                let key_str = format!("{}", key_val);
+                let ttl = ttl_seconds.unwrap_or(120.0);
+
+                // Check if key exists and is still within TTL
+                if let Some(timestamp) = self.dedup_cache.get(&key_str) {
+                    let elapsed = Instant::now().duration_since(*timestamp).as_secs_f64();
+                    if elapsed < ttl {
+                        self.emit(format!(
+                            "[Dedup Blocked] Operation '{}' was already executed {:.1}s ago (TTL: {}s)",
+                            key_str, elapsed, ttl
+                        ));
+                        return Ok(());
+                    }
+                }
+
+                // Record the operation and execute
+                self.dedup_cache.insert(key_str.clone(), Instant::now());
+                self.emit(format!(
+                    "[Dedup Allowed] Operation '{}' (TTL: {}s)",
+                    key_str, ttl
+                ));
+
+                for stmt in body {
+                    self.eval_statement(stmt)?;
+                }
+            }
+
+            Statement::GateTiered {
+                prompt,
+                tiers,
+                body,
+            } => {
+                let p = self.eval_expr(prompt)?;
+                let prompt_str = match &p {
+                    Value::String(s) => s.clone(),
+                    _ => format!("{:?}", p),
+                };
+
+                // Evaluate tiers top-to-bottom, find first matching condition
+                let mut action = None;
+                for tier in tiers {
+                    let cond_val = self.eval_expr(tier.condition)?;
+                    if let Value::Bool(true) = cond_val {
+                        action = Some(tier.action);
+                        break;
+                    }
+                }
+
+                match action {
+                    Some(GateAction::AutoApprove) => {
+                        self.emit(format!(
+                            "[Gate Auto-Approved] {}",
+                            prompt_str
+                        ));
+                        for stmt in body {
+                            self.eval_statement(stmt)?;
+                        }
+                    }
+                    Some(GateAction::RequireApproval) => {
+                        self.emit(format!(
+                            "[GATE] {}",
+                            prompt_str
+                        ));
+                        self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
+                        let mut input = String::new();
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .map_err(|e| e.to_string())?;
+                        for stmt in body {
+                            self.eval_statement(stmt)?;
+                        }
+                    }
+                    Some(GateAction::Deny) => {
+                        self.emit(format!(
+                            "[Gate Denied] {}",
+                            prompt_str
+                        ));
+                        return Err(format!(
+                            "[Gate Denied] Operation blocked by tiered gate: {}",
+                            prompt_str
+                        ));
+                    }
+                    None => {
+                        // No tier matched — default to require_approval (safest fallback)
+                        self.emit(format!(
+                            "[GATE] {} (no tier matched, defaulting to require_approval)",
+                            prompt_str
+                        ));
+                        self.emit("(Simulating Human Approval: Press Enter to Continue)".to_string());
+                        let mut input = String::new();
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .map_err(|e| e.to_string())?;
+                        for stmt in body {
+                            self.eval_statement(stmt)?;
+                        }
+                    }
+                }
+            }
+
+            Statement::VerifyIdentity {
+                identity_expr,
+                body,
+            } => {
+                let identity_val = self.eval_expr(identity_expr)?;
+                let identity_str = format!("{}", identity_val);
+
+                if self.verified_identities.contains(&identity_str) {
+                    self.emit(format!(
+                        "[Identity Verified] '{}' (previously verified)",
+                        identity_str
+                    ));
+                } else {
+                    self.emit(format!(
+                        "[Identity Verification Required] Verify identity: '{}'",
+                        identity_str
+                    ));
+                    self.emit("(Simulating Identity Verification: Press Enter to Confirm)".to_string());
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_line(&mut input)
+                        .map_err(|e| e.to_string())?;
+                    self.verified_identities.insert(identity_str.clone());
+                    self.emit(format!(
+                        "[Identity Verified] '{}' added to verified set",
+                        identity_str
+                    ));
+                }
+
+                for stmt in body {
+                    self.eval_statement(stmt)?;
+                }
+            }
         }
         Ok(())
     }
@@ -706,7 +1012,28 @@ impl Evaluator {
 
     // Day 4: Function Calls with Permission Enforcement (THE PHYSICS!)
     // Day 6: Now checks builtins first
+    // M27: Now also enforces budget and rate limits (FINANCIAL PHYSICS!)
     pub fn eval_call(&mut self, name: &str, args: Vec<Expr>) -> Result<Value, String> {
+        // M27: Handle comparison builtins for tiered gate conditions
+        if name == "__cmp_lt" || name == "__cmp_gte" {
+            let mut evaluated_args = Vec::new();
+            for arg in args {
+                evaluated_args.push(self.eval_expr(arg)?);
+            }
+            if evaluated_args.len() != 2 {
+                return Err(format!("Comparison requires 2 args, got {}", evaluated_args.len()));
+            }
+            let (left, right) = match (&evaluated_args[0], &evaluated_args[1]) {
+                (Value::Number(l), Value::Number(r)) => (*l, *r),
+                _ => return Err("Comparison operands must be numbers".to_string()),
+            };
+            return Ok(Value::Bool(if name == "__cmp_lt" {
+                left < right
+            } else {
+                left >= right
+            }));
+        }
+
         // Day 6: Check if it's a builtin function first (no permission check needed)
         if self.builtins.has(name) {
             let mut evaluated_args = Vec::new();
@@ -722,12 +1049,17 @@ impl Evaluator {
         }
 
         // Check if tool is defined and get its metadata
-        let (permission, timeout) = {
+        let (permission, timeout, cost_param, tool_params) = {
             let tool = self
                 .tools
                 .get(name)
                 .ok_or(format!("Unknown function or tool: '{}'", name))?;
-            (tool.permission.clone(), tool.timeout)
+            (
+                tool.permission.clone(),
+                tool.timeout,
+                tool.cost_param.clone(),
+                tool.params.clone(),
+            )
         };
 
         // Day 4: PERMISSION ENFORCEMENT
@@ -763,6 +1095,46 @@ impl Evaluator {
             evaluated_args.push(self.eval_expr(arg)?);
         }
 
+        // M27: RATE LIMIT ENFORCEMENT (Financial Physics!)
+        if let Some(agent_name) = &self.current_agent.clone() {
+            if let Some(agent) = self.agents.get_mut(agent_name) {
+                if let Some(ref mut tracker) = agent.rate_limit_tracker {
+                    tracker.check(name)?;
+                    self.emit(format!(
+                        "[Rate Limit Check] Agent '{}' call to '{}' — within limits",
+                        agent_name, name
+                    ));
+                }
+            }
+        }
+
+        // M27: BUDGET ENFORCEMENT (Financial Physics!)
+        if let Some(cost_param_name) = &cost_param {
+            if let Some(agent_name) = &self.current_agent.clone() {
+                // Find the cost value from the evaluated args
+                let cost_idx = tool_params
+                    .iter()
+                    .position(|p| p == cost_param_name);
+
+                if let Some(idx) = cost_idx {
+                    if idx < evaluated_args.len() {
+                        if let Value::Number(cost) = &evaluated_args[idx] {
+                            let cost_val = *cost;
+                            if let Some(agent) = self.agents.get_mut(agent_name) {
+                                if let Some(ref mut budget) = agent.budget_tracker {
+                                    budget.check_and_record(cost_val)?;
+                                    self.emit(format!(
+                                        "[Budget Check] Agent '{}' spending {} — within budget",
+                                        agent_name, cost_val
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Day 4: Execute in sandbox
         self.emit(format!(
             "[Tool Call] {} with {} args (permission: {:?}, timeout: {:?}s)",
@@ -792,11 +1164,15 @@ impl Evaluator {
             .get(&agent_name)
             .ok_or(format!("Agent '{}' not defined", agent_name))?;
 
+        let budget_tracker = def.budget.as_ref().map(BudgetTracker::new);
+        let rate_limit_tracker = def.rate_limit.as_ref().map(RateLimitTracker::new);
         let instance = AgentInstance {
             name: var_name.clone(),
             agent_def_name: agent_name.clone(),
             allowed_tools: def.allow_list.clone(),
             variables: HashMap::new(),
+            budget_tracker,
+            rate_limit_tracker,
         };
 
         self.agents.insert(var_name.clone(), instance);
@@ -817,18 +1193,30 @@ impl Evaluator {
         allow_list: Vec<String>,
         tasks: Vec<TaskDef>,
         body: Vec<Statement>,
+        budget: Option<BudgetDef>,
+        rate_limit: Option<RateLimitDef>,
     ) -> Result<(), String> {
+        let has_budget = budget.is_some();
+        let has_rate_limit = rate_limit.is_some();
         let agent_def = AgentDef {
             name: name.clone(),
             allow_list: allow_list.clone(),
             tasks,
             body,
+            budget,
+            rate_limit,
         };
         self.agent_defs.insert(name.clone(), agent_def);
         self.emit(format!(
-            "[Agent Defined] {} (allows {} tools)",
+            "[Agent Defined] {} (allows {} tools{}{})",
             name,
-            allow_list.len()
+            allow_list.len(),
+            if has_budget { ", has budget" } else { "" },
+            if has_rate_limit {
+                ", has rate_limit"
+            } else {
+                ""
+            }
         ));
         Ok(())
     }
@@ -840,18 +1228,26 @@ impl Evaluator {
         params: Vec<String>,
         permission: Option<String>,
         timeout: Option<f64>,
+        cost_param: Option<String>,
     ) -> Result<(), String> {
         let tool = Tool {
             name: name.clone(),
             params,
             permission,
             timeout,
+            cost_param: cost_param.clone(),
         };
         let param_count = tool.params.len();
         self.tools.insert(name.clone(), tool);
         self.emit(format!(
-            "[Tool Registered] {} with {} params",
-            name, param_count
+            "[Tool Registered] {} with {} params{}",
+            name,
+            param_count,
+            if cost_param.is_some() {
+                format!(" (cost param: {:?})", cost_param.unwrap())
+            } else {
+                String::new()
+            }
         ));
         Ok(())
     }
