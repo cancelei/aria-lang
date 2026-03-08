@@ -6,7 +6,7 @@
 use crate::{TypeError, TypeSource, BinaryOpSide};
 use aria_diagnostics::{Diagnostic, suggestion::Suggestion};
 use aria_diagnostics::span::SourceSpan;
-use aria_lexer::Span;
+use aria_ast::Span;
 
 impl TypeError {
     /// Convert this TypeError to a rich Diagnostic with context and suggestions.
